@@ -1,0 +1,18 @@
+{
+  "telegram_token": "YOUR_BOT_TOKEN_HERE",
+  "telegram_chat_id": null,
+  "user_name": "",
+  "claude_model": "sonnet",
+  "project_dir": ".",
+  "polling_interval_seconds": 2,
+  "session_timeout_hours": 3,
+  "max_retry_attempts": 3,
+  "retry_backoff_seconds": [5, 10, 30],
+  "heartbeat_interval_minutes": 30,
+  "heartbeat_times": ["09:00", "13:00", "18:00"],
+  "reasoning_gate_enabled": true,
+  "whisper_bin": "",
+  "whisper_model": "base",
+  "whisper_language": "pt",
+  "timezone": "America/Sao_Paulo"
+}

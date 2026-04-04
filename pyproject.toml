@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-code-assistant"
+version = "0.1.0"
+description = "Turn Claude into a persistent personal AI assistant that lives in your Telegram"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+    {name = "Alisson Oliveira"},
+]
+dependencies = [
+    "requests>=2.28.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["claude_assistant*", "setup_wizard*"]
+
+[project.optional-dependencies]
+audio = ["openai-whisper"]
+
+[project.scripts]
+claude-assistant = "claude_assistant.daemon:main"
+claude-assistant-setup = "setup_wizard.wizard:main"
+
+[project.urls]
+Homepage = "https://github.com/alissonoliveira/claude-code-assistant"
+Repository = "https://github.com/alissonoliveira/claude-code-assistant"
+Issues = "https://github.com/alissonoliveira/claude-code-assistant/issues"

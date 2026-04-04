@@ -1,0 +1,4 @@
+requests>=2.28.0
+
+# Optional: faster audio transcription (5-10x faster than whisper CLI)
+# faster-whisper>=1.0.0

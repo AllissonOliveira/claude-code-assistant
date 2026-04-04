@@ -1,0 +1,21 @@
+{
+  "id": "slack",
+  "name": "Slack",
+  "description": "Mensagens, canais, busca de conversas",
+  "category": "recommended",
+  "priority": 2,
+  "auth_difficulty": "easy",
+  "command": "npx",
+  "args": ["-y", "@anthropic-ai/slack-mcp"],
+  "env": {
+    "SLACK_BOT_TOKEN": {
+      "description": "Token do bot do Slack",
+      "required": true,
+      "instructions": "1. Abra: https://api.slack.com/apps\n2. Clique 'Create New App' > 'From scratch'\n3. Nome: 'Claude Assistant', escolha seu workspace\n4. No menu lateral: 'OAuth & Permissions'\n5. Em 'Bot Token Scopes', adicione:\n   - channels:history\n   - channels:read\n   - chat:write\n   - users:read\n6. Clique 'Install to Workspace' no topo da pagina\n7. Autorize\n8. Copie o 'Bot User OAuth Token' (comeca com xoxb-)"
+    }
+  },
+  "pre_install": null,
+  "post_install": null,
+  "notes": "Para comunicacao interna de equipe",
+  "shared_credentials": null
+}

@@ -1,0 +1,26 @@
+{
+  "id": "google-workspace",
+  "name": "Google Workspace",
+  "description": "Calendar, Gmail, Docs, Sheets, Drive, Slides, Forms, Tasks (tudo em um)",
+  "category": "essential",
+  "priority": 1,
+  "auth_difficulty": "medium",
+  "command": "uvx",
+  "args": ["workspace-mcp", "--tool-tier", "core", "--tools", "gmail", "calendar", "docs", "sheets", "drive"],
+  "env": {
+    "GOOGLE_OAUTH_CLIENT_ID": {
+      "description": "Client ID do OAuth do Google",
+      "required": true,
+      "instructions": "Passo a passo:\n\n1. Abra: https://console.cloud.google.com/projectcreate\n2. Nome do projeto: 'Claude Assistant' (qualquer nome serve)\n3. Clique 'Criar' e aguarde\n4. No menu lateral esquerdo, clique: APIs e servicos > Biblioteca\n5. Pesquise e ATIVE cada uma dessas APIs (clique em cada uma e depois em 'Ativar'):\n   - Google Calendar API\n   - Gmail API\n   - Google Docs API\n   - Google Sheets API\n   - Google Drive API\n6. No menu lateral, clique: APIs e servicos > Tela de consentimento OAuth\n7. Escolha 'Externo' e clique 'Criar'\n8. Preencha: nome do app = 'Claude Assistant', email de suporte = seu email\n9. Clique 'Salvar e continuar' em todas as telas ate finalizar\n10. No menu lateral: APIs e servicos > Credenciais\n11. Clique '+ Criar credenciais' > 'ID do cliente OAuth'\n12. Tipo de aplicativo: 'App para computador'\n13. Nome: 'Claude Assistant'\n14. Clique 'Criar'\n15. COPIE o 'ID do cliente' (termina em .apps.googleusercontent.com)"
+    },
+    "GOOGLE_OAUTH_CLIENT_SECRET": {
+      "description": "Client Secret do OAuth do Google",
+      "required": true,
+      "instructions": "Na mesma tela do passo anterior, COPIE o 'Secret do cliente'"
+    }
+  },
+  "pre_install": "pip install uv 2>/dev/null || true",
+  "post_install": null,
+  "notes": "Substitui Google Calendar + Gmail + Google Docs em um unico MCP. Usa o tier 'core' por padrao (tools essenciais). Para expandir, mude --tool-tier para 'extended' ou 'complete'.",
+  "shared_credentials": null
+}

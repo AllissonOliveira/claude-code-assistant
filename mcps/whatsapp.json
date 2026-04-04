@@ -1,0 +1,20 @@
+{
+  "id": "whatsapp",
+  "name": "WhatsApp",
+  "description": "Le mensagens, busca contatos e envia mensagens pelo WhatsApp pessoal",
+  "category": "essential",
+  "priority": 1,
+  "auth_difficulty": "hard",
+  "command": "uv",
+  "args": [
+    "--directory",
+    "~/.claude/whatsapp-mcp/whatsapp-mcp-server",
+    "run",
+    "main.py"
+  ],
+  "env": {},
+  "pre_install": "1. Instale o uv (gerenciador Python): curl -LsSf https://astral.sh/uv/install.sh | sh\n2. Clone o repositorio: git clone https://github.com/lharries/whatsapp-mcp.git ~/.claude/whatsapp-mcp\n3. Instale dependencias Go para o bridge: cd ~/.claude/whatsapp-mcp/whatsapp-bridge && go build\n4. Instale dependencias Python: cd ~/.claude/whatsapp-mcp/whatsapp-mcp-server && uv sync",
+  "post_install": "1. Inicie o bridge Go primeiro: cd ~/.claude/whatsapp-mcp/whatsapp-bridge && ./whatsapp-bridge\n2. Na primeira execucao, um QR code aparece no terminal\n3. Abra o WhatsApp no celular > Configuracoes > Aparelhos conectados > Conectar um aparelho\n4. Escaneie o QR code com o celular\n5. Aguarde a sincronizacao (pode levar alguns minutos)",
+  "notes": "DIFICULDADE ALTA: requer Go instalado, bridge rodando em background, e autenticacao via QR code do WhatsApp. Sera substituido por versao customizada futuramente.",
+  "shared_credentials": null
+}

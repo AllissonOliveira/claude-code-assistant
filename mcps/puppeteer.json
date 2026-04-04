@@ -1,0 +1,15 @@
+{
+  "id": "puppeteer",
+  "name": "Puppeteer",
+  "description": "Controla navegador headless para screenshots, navegacao e automacao web",
+  "category": "recommended",
+  "priority": 2,
+  "auth_difficulty": "easy",
+  "command": "npx",
+  "args": ["-y", "@hisma/server-puppeteer"],
+  "env": {},
+  "pre_install": null,
+  "post_install": null,
+  "notes": "Nenhuma credencial necessaria. O npx baixa o pacote automaticamente na primeira execucao. Permite ao Claude navegar em paginas web, tirar screenshots, clicar em elementos e preencher formularios. Util para debugging visual, testes de interface e scraping.",
+  "shared_credentials": null
+}

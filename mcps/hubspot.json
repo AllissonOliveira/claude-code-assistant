@@ -1,0 +1,21 @@
+{
+  "id": "hubspot-local",
+  "name": "HubSpot",
+  "description": "Gerencia contatos, deals, empresas e workflows no HubSpot CRM",
+  "category": "recommended",
+  "priority": 2,
+  "auth_difficulty": "medium",
+  "command": "npx",
+  "args": ["-y", "@hubspot/mcp-server"],
+  "env": {
+    "PRIVATE_APP_ACCESS_TOKEN": {
+      "description": "Token de acesso de um Private App do HubSpot",
+      "required": true,
+      "instructions": "1. Acesse sua conta HubSpot: https://app.hubspot.com/\n2. Clique no icone de engrenagem (Configuracoes) no canto superior direito\n3. No menu lateral esquerdo, va em 'Integracoes' > 'Private Apps'\n   Link direto: https://app.hubspot.com/private-apps/\n4. Clique 'Criar um Private App'\n5. Na aba 'Informacoes basicas':\n   - Nome: 'MCP Server' (ou qualquer nome)\n   - Descricao: opcional\n6. Na aba 'Escopos', marque os escopos necessarios:\n   - crm.objects.contacts.read\n   - crm.objects.contacts.write\n   - crm.objects.deals.read\n   - crm.objects.deals.write\n   - crm.objects.companies.read\n   - crm.objects.companies.write\n   - crm.schemas.contacts.read\n   - crm.schemas.deals.read\n   - Adicione outros conforme necessario\n7. Clique 'Criar app' no canto superior direito\n8. Confirme clicando 'Continuar criando'\n9. Copie o token que aparece - esse e o PRIVATE_APP_ACCESS_TOKEN\n   Formato: pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\n10. IMPORTANTE: esse token so aparece uma vez. Salve em local seguro."
+    }
+  },
+  "pre_install": null,
+  "post_install": null,
+  "notes": "Pacote oficial do HubSpot. Comece com escopos de leitura (read) e adicione escrita (write) conforme necessario. O token nao expira, mas pode ser revogado a qualquer momento nas configuracoes do Private App. O Claude tambem tem conector nativo para HubSpot - este MCP local oferece controle mais granular.",
+  "shared_credentials": null
+}

@@ -1,0 +1,21 @@
+{
+  "id": "manychat",
+  "name": "ManyChat",
+  "description": "Gerencia subscribers, tags, flows e envia mensagens via ManyChat",
+  "category": "optional",
+  "priority": 3,
+  "auth_difficulty": "easy",
+  "command": "npx",
+  "args": ["-y", "manychat-mcp"],
+  "env": {
+    "MANYCHAT_API_TOKEN": {
+      "description": "Token da API do ManyChat para acessar seu bot",
+      "required": true,
+      "instructions": "1. Acesse o painel do ManyChat: https://manychat.com/\n2. Faca login na sua conta\n3. No menu lateral esquerdo, clique em 'Settings' (Configuracoes)\n4. Clique na aba 'API'\n5. Clique no botao 'Generate your API Key' (se ainda nao tiver)\n6. Copie o token que aparece"
+    }
+  },
+  "pre_install": null,
+  "post_install": null,
+  "notes": "Para quem usa ManyChat para automacoes de Instagram/Messenger",
+  "shared_credentials": null
+}
