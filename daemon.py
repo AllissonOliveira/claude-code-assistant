@@ -685,7 +685,7 @@ def _parse_json_response(response: str) -> dict | None:
         return None
 
 
-def _write_memory_extract(extract: dict, cfg: dict | None = None) -> list[str]:
+def _write_memory_extract(extract: dict, cfg: dict | None = None, allow_reminders: bool = False) -> list[str]:
     """Daemon escreve nos arquivos de memória com base no JSON extraído.
 
     Retorna lista descritiva do que foi salvo (para notificação Telegram).
@@ -763,12 +763,13 @@ def _write_memory_extract(extract: dict, cfg: dict | None = None) -> list[str]:
         with open(MEMORY_FILE, "a", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
 
-    # --- Tarefas → reminders.json ---
-    # Só cria lembrete se o usuário informou data explícita; sem data = só nota em MEMORY.md
+    # --- Tarefas ---
+    # Lembretes so sao criados quando allow_reminders=True (encerramento de sessao)
+    # Checkpoint de memoria (a cada 5 msgs) salva apenas em MEMORY.md como pendencia
     tz_brt = _get_local_tz()
     tasks = [t for t in extract.get("tasks", []) if isinstance(t, dict) and t.get("text")]
     if tasks:
-        reminders = load_reminders()
+        reminders = load_reminders() if allow_reminders else []
         for t in tasks:
             text = t.get("text", "").strip()
             due_date_raw = t.get("due_date")
@@ -777,11 +778,23 @@ def _write_memory_extract(extract: dict, cfg: dict | None = None) -> list[str]:
             due_time = str(due_time_raw).strip() if due_time_raw and str(due_time_raw).strip() not in ("null", "None", "") else ""
             if not text:
                 continue
-            # Sem data explícita: não criar lembrete automático
-            if not due_date:
+            # Sem data ou sem permissao de criar lembrete: salva como pendencia
+            if not due_date or not allow_reminders:
                 with open(MEMORY_FILE, "a", encoding="utf-8") as f:
-                    f.write(f"\n- [pendente] {text} ({now_str})\n")
+                    date_info = f" (para {due_date})" if due_date else ""
+                    f.write(f"\n- [pendente] {text}{date_info} ({now_str})\n")
                 saved.append(f"Pendencia: {text[:70]}")
+                continue
+            # Deduplicacao: nao criar lembrete se ja existe um identico
+            new_text = f"{(cfg or {}).get('user_name', '')}, nao esquece: {text}".lstrip(", ")
+            already_exists = any(
+                existing.get("text", "").strip() == new_text.strip()
+                and existing.get("due_at", "")[:10] == due_date
+                and not existing.get("sent")
+                for existing in reminders
+            )
+            if already_exists:
+                log(f"[MEMORIA] Lembrete duplicado ignorado: {text[:60]}")
                 continue
             try:
                 time_part = due_time if due_time else "08:00"
@@ -792,7 +805,7 @@ def _write_memory_extract(extract: dict, cfg: dict | None = None) -> list[str]:
                     hour=8, minute=0, second=0, microsecond=0).isoformat()
             reminders.append({
                 "id": str(uuid.uuid4()),
-                "text": f"{(cfg or {}).get('user_name', '')}, não esquece: {text}".lstrip(", "),
+                "text": new_text,
                 "due_at": due_at,
                 "action": "notify",
                 "sent": False,
@@ -800,12 +813,13 @@ def _write_memory_extract(extract: dict, cfg: dict | None = None) -> list[str]:
             saved.append(f"Lembrete: {text[:70]}")
 
         # Valida que o JSON resultante é serializável antes de sobrescrever o arquivo
-        try:
-            json.dumps(reminders, ensure_ascii=False, default=str)
-        except (TypeError, ValueError) as json_err:
-            log(f"[MEMÓRIA] reminders resultante inválido — abortando escrita: {json_err}")
-        else:
-            save_reminders(reminders)
+        if allow_reminders:
+            try:
+                json.dumps(reminders, ensure_ascii=False, default=str)
+            except (TypeError, ValueError) as json_err:
+                log(f"[MEMÓRIA] reminders resultante inválido — abortando escrita: {json_err}")
+            else:
+                save_reminders(reminders)
 
     return saved
 
@@ -890,7 +904,7 @@ def save_session_to_memory(session_id: str | None, cfg: dict) -> None:
         log("[MEMÓRIA] Nada novo para salvar")
         return
 
-    saved = _write_memory_extract(extract, cfg)
+    saved = _write_memory_extract(extract, cfg, allow_reminders=True)
 
     # Cria nota diária se tem resumo
     summary = extract.get("summary", "").strip()
