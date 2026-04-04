@@ -373,20 +373,24 @@ def main() -> None:
     print_header()
 
     # Etapa 1
-    print_step(1, 4, "Verificando sistema")
+    print_step(1, 5, "Verificando sistema")
     check_system()
 
     # Etapa 2
-    print_step(2, 4, "Seu perfil")
+    print_step(2, 5, "Seu perfil")
     profile = collect_profile()
     generate_profile_files(profile)
 
     # Etapa 3
-    print_step(3, 4, "Integracoes")
-    run_mcp_setup()
+    print_step(3, 5, "Configuracao do bot")
+    collect_bot_config(profile)
 
     # Etapa 4
-    print_step(4, 4, "Telegram")
+    print_step(4, 5, "Integracoes")
+    run_mcp_setup()
+
+    # Etapa 5
+    print_step(5, 5, "Telegram")
     telegram = setup_telegram_flow()
     token = telegram["token"]
     chat_id = telegram.get("chat_id")
@@ -394,6 +398,36 @@ def main() -> None:
     install_service(str(BASE_DIR))
 
     print_success()
+
+
+def collect_bot_config(profile: dict) -> None:
+    """Coleta nome do bot e idioma do audio. Atualiza o dict in-place."""
+    # Nome do bot
+    print(f"  {BOLD}Qual vai ser o nome do seu assistente?{RESET}")
+    print(f"  Exemplos: 'Metta Assistant', 'Meu Assistente', 'Jarvis'\n")
+    bot_name = input("  Nome: ").strip()
+    if not bot_name:
+        bot_name = "Claude Assistant"
+        print_aviso(f"Usando nome padrao: {bot_name}")
+    else:
+        print_ok(f"Nome do bot: {bot_name}")
+    profile["bot_name"] = bot_name
+
+    # Idioma do audio (whisper)
+    print(f"\n  {BOLD}Em qual idioma voce vai mandar mensagens de voz?{RESET}\n")
+    lang_idx = escolha([
+        "Portugues",
+        "Ingles",
+        "Espanhol",
+        "Outro idioma",
+    ])
+    lang_map = {0: "pt", 1: "en", 2: "es"}
+    if lang_idx in lang_map:
+        profile["language_code"] = lang_map[lang_idx]
+    else:
+        code = input(f"\n  Codigo ISO 639-1 do idioma (ex: fr, de, it): ").strip().lower()
+        profile["language_code"] = code if code else "pt"
+    print_ok(f"Idioma de audio: {profile['language_code']}")
 
 
 def collect_profile() -> dict:

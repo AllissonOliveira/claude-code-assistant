@@ -15,12 +15,18 @@ BOLD = "\033[1m"
 RESET = "\033[0m"
 
 
-def _confirm(prompt: str, default: bool = True) -> bool:
-    suffix = "[Y/n]" if default else "[y/N]"
-    raw = input(f"{CYAN}  {prompt} {suffix}: {RESET}").strip().lower()
-    if not raw:
-        return default
-    return raw in ("y", "yes")
+def _escolha_sim_nao(prompt: str) -> bool:
+    """Pergunta sim/nao usando opcoes numeradas (padrao do wizard)."""
+    print(f"\n{CYAN}  {prompt}{RESET}\n")
+    print(f"  {BOLD}1{RESET} - Sim")
+    print(f"  {BOLD}2{RESET} - Nao")
+    while True:
+        raw = input(f"\n  Escolha: ").strip()
+        if raw == "1":
+            return True
+        if raw == "2":
+            return False
+        print(f"  {YELLOW}Por favor, digite 1 ou 2.{RESET}")
 
 
 def _install_launchagent(project_dir: str, python_path: str) -> bool:
@@ -92,7 +98,7 @@ def _install_systemd(project_dir: str, python_path: str) -> bool:
     print(f"    systemctl --user status {service_name}")
 
     # Try to write the file automatically
-    if _confirm("Salvar o arquivo de serviço automaticamente?"):
+    if _escolha_sim_nao("Salvar o arquivo de serviço automaticamente?"):
         try:
             os.makedirs(service_dir, exist_ok=True)
             with open(service_path, "w") as f:
@@ -123,14 +129,14 @@ def install_service(project_dir: str, python_path: str | None = None) -> bool:
     project_dir = os.path.abspath(project_dir)
 
     if sys.platform == "darwin":
-        if not _confirm("Instalar como LaunchAgent do macOS (iniciar automaticamente no login)?"):
+        if not _escolha_sim_nao("Instalar como LaunchAgent do macOS (iniciar automaticamente no login)?"):
             print(f"{YELLOW}  [!] Ignorado. Você pode executar o assistente manualmente:{RESET}")
             print(f"    {python_path} {project_dir}/daemon.py")
             return True
         return _install_launchagent(project_dir, python_path)
 
     elif sys.platform == "linux":
-        if not _confirm("Configurar serviço systemd de usuário?"):
+        if not _escolha_sim_nao("Configurar serviço systemd de usuário?"):
             print(f"{YELLOW}  [!] Ignorado. Você pode executar o assistente manualmente:{RESET}")
             print(f"    {python_path} {project_dir}/daemon.py")
             return True
