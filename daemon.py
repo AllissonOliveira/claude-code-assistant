@@ -92,6 +92,22 @@ def _append_conv_log(user_text: str, bot_response: str) -> None:
         pass  # Log não pode quebrar o fluxo principal
 
 
+def _append_bot_initiated_log(source: str, message: str) -> None:
+    """Registra mensagens proativas do bot (lembretes, heartbeats) no conv-log.
+
+    Isso garante que quando o usuario responder, o Claude sabe o que o bot
+    acabou de dizer e pode referenciar corretamente.
+    """
+    try:
+        MEMORY_DIR.mkdir(exist_ok=True)
+        now = datetime.now()
+        entry = f"\n[{now.strftime('%H:%M')}] BOT ({source}): {message[:1000]}\n"
+        with open(_conv_log_path(now), "a", encoding="utf-8") as f:
+            f.write(entry)
+    except Exception:
+        pass
+
+
 def _read_conv_logs(days: int = 2) -> str:
     """Lê os logs de conversa dos últimos N dias para uso no salvamento de memória."""
     parts = []
@@ -993,7 +1009,9 @@ def check_reminders(cfg: dict, session_id: str | None = None) -> None:
                 # Ação automática: roda em thread pra não bloquear o loop
                 reminder_text = r.get("text", "")
                 log(f"[LEMBRETE] Executando ação em background: {reminder_text[:60]}")
-                send_telegram(chat_id, f"⏰ Executando agendamento:\n{reminder_text[:100]}", token)
+                exec_msg = f"⏰ Executando agendamento:\n{reminder_text[:100]}"
+                send_telegram(chat_id, exec_msg, token)
+                _append_bot_initiated_log("agendamento", exec_msg)
 
                 def _exec_reminder(text=reminder_text, cid=chat_id, tk=token):
                     try:
@@ -1001,6 +1019,7 @@ def check_reminders(cfg: dict, session_id: str | None = None) -> None:
                         resp, _ = call_claude(text, None, cfg)
                         if resp:
                             send_telegram(cid, resp, tk)
+                            _append_bot_initiated_log("agendamento-resultado", resp)
                     except Exception as ex:
                         log(f"[LEMBRETE] Erro na execução: {ex}")
                         send_telegram(cid, f"Erro ao executar agendamento: {text[:60]}", tk)
@@ -1010,6 +1029,7 @@ def check_reminders(cfg: dict, session_id: str | None = None) -> None:
                 # Lembrete simples: só notifica
                 msg = f"🔔 **Lembrete**\n\n{r.get('text', '(sem texto)')}"
                 send_telegram(chat_id, msg, token)
+                _append_bot_initiated_log("lembrete", msg)
                 log(f"[LEMBRETE] Enviado: {r.get('text', '')[:60]}")
 
             r["sent"] = True
@@ -1139,6 +1159,7 @@ def run_heartbeat(cfg: dict, state: dict) -> None:
                     chat_id = cfg.get("telegram_chat_id")
                     if chat_id:
                         send_telegram(chat_id, response, cfg["telegram_token"])
+                        _append_bot_initiated_log("heartbeat", response)
                         _last_heartbeat_notification = response_key
                         # Persiste no state para sobreviver a restarts
                         try:
