@@ -6,7 +6,7 @@
   "priority": 2,
   "auth_difficulty": "easy",
   "command": "npx",
-  "args": ["-y", "@anthropic-ai/slack-mcp"],
+  "args": ["-y", "@anthropic-ai/mcp-server-slack"],
   "env": {
     "SLACK_BOT_TOKEN": {
       "description": "Token do bot do Slack",

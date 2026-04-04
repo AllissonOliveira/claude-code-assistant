@@ -260,12 +260,37 @@ def generate_config(token: str, chat_id: int | None, profile: dict) -> None:
             f"{profile['custom_instructions']}\n"
         )
 
+    can_disagree = profile.get("can_disagree", True)
+    opinion_style = (
+        "Se uma abordagem tem problemas, diga com respeito."
+        if can_disagree else
+        "Siga as instrucoes do usuario sem questionar. Sugira alternativas apenas se solicitado."
+    )
+    tone = profile.get("tone", "informal")
+    tone_description = (
+        "Informal e direto. Fale como um colega competente, nao como um robo."
+        if tone == "informal" else
+        "Formal e profissional. Mantenha a linguagem objetiva e respeitosa."
+    )
     core_content = CORE_TEMPLATE.substitute(
         bot_name=profile.get("bot_name", "Claude Assistant"),
-        user_name=profile.get("user_name", profile.get("name", "")),
+        preferred_name=profile.get("preferred_name", profile.get("user_name", profile.get("name", ""))),
         communication_style=profile.get("communication_style", ""),
+        opinion_style=opinion_style,
+        tone_description=tone_description,
     )
     _escrever(os.path.join(project_dir, "CORE.md"), core_content)
+
+    contacts = profile.get("contacts", [])
+    if contacts:
+        contacts_lines = ["| Nome | Telefone | Email | Contexto |", "|---|---|---|---|"]
+        for c in contacts:
+            contacts_lines.append(
+                f"| {c.get('name', '')} | {c.get('phone', '')} | {c.get('email', '')} | {c.get('context', '')} |"
+            )
+        contacts_section = "\n".join(contacts_lines)
+    else:
+        contacts_section = "_(Contatos serao adicionados automaticamente conforme mencionados)_"
 
     user_content = USER_TEMPLATE.substitute(
         user_name=profile.get("user_name", profile.get("name", "")),
@@ -274,6 +299,7 @@ def generate_config(token: str, chat_id: int | None, profile: dict) -> None:
         language=profile.get("language", "Portugues"),
         help_description=profile.get("help_description", profile.get("use_cases", "")),
         communication_preferences=comm_prefs,
+        contacts_section=contacts_section,
     )
     _escrever(os.path.join(project_dir, "USER.md"), user_content)
 

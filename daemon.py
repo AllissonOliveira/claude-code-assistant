@@ -1299,11 +1299,13 @@ class MessageType(Enum):
 
 _DESTRUCTIVE_PATTERNS = re.compile(
     r'\b(envia\s+(mensagem|email|msg)|manda\s+(mensagem|email|msg)|'
-    r'send|deleta|remove|apaga|sobrescreve|exclui)\b', re.IGNORECASE)
+    r'deleta|remove|apaga|sobrescreve|exclui|cancela)\b', re.IGNORECASE)
 
 _TASK_PATTERNS = re.compile(
     r'\b(agenda|cria|faz|escreve|analisa|configura|atualiza|'
-    r'verifica|checa|ve\s+minh|veja\s+minh|puxa|busca|pesquisa)\b', re.IGNORECASE)
+    r'verifica|checa|ve\s+minh|veja\s+minh|puxa|busca|pesquisa|'
+    r'marca|marque|adiciona|adicione|edita|modifica|reagenda|'
+    r'gera|prepara|redige|liste|resume)\b', re.IGNORECASE)
 
 
 def classify_message(text: str) -> MessageType:
@@ -1384,18 +1386,18 @@ _REVIEW_PROMPT = (
 )
 
 
-def run_self_review(response: str, cfg: dict) -> tuple[str, bool]:
-    """Auto-revisao da resposta antes de enviar. Retorna (response, was_revised)."""
+def run_self_review(response: str, cfg: dict) -> tuple[str, bool, str]:
+    """Auto-revisao da resposta antes de enviar. Retorna (response, was_revised, reason)."""
     prompt = _REVIEW_PROMPT.format(resposta=response)
     review, _ = call_claude(prompt, None, cfg)
     if not review:
-        return response, False
+        return response, False, ""
     if "REVISE:" in review:
         reason = review.split("REVISE:", 1)[1].strip()
         log(f"[REVIEW] Revisao solicitada: {reason[:80]}")
-        return response, True  # Sinaliza que precisa revisao
+        return response, True, reason
     log("[REVIEW] APPROVED")
-    return response, False
+    return response, False, ""
 
 
 def call_claude(
@@ -1833,10 +1835,9 @@ def handle_text(text: str, chat_id: int, state: dict, cfg: dict) -> None:
 
         # Self-review para mensagens DESTRUCTIVE (max 1 retry)
         if response and msg_type == MessageType.DESTRUCTIVE:
-            response, was_revised = run_self_review(response, cfg)
+            response, was_revised, revision_reason = run_self_review(response, cfg)
             if was_revised:
-                # Monta prompt de revisao com o motivo e refaz a chamada
-                review_prompt = f"[REVISAO NECESSARIA]\n\nResposta anterior necessita correcao. Reescreva levando em conta o problema identificado.\n\n{enriched}"
+                review_prompt = f"[REVISAO NECESSARIA]\n\nProblema identificado: {revision_reason}\n\nResposta original:\n{response}\n\nReescreva corrigindo o problema acima.\n\n{enriched}"
                 revised_response, _ = call_claude(
                     review_prompt, state.get("session_id"), cfg,
                     force_full_turns=False,

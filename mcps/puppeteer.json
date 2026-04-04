@@ -6,7 +6,7 @@
   "priority": 2,
   "auth_difficulty": "easy",
   "command": "npx",
-  "args": ["-y", "@hisma/server-puppeteer"],
+  "args": ["-y", "@anthropic-ai/mcp-server-puppeteer"],
   "env": {},
   "pre_install": null,
   "post_install": null,
