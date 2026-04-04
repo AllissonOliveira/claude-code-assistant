@@ -83,8 +83,8 @@ def _append_conv_log(user_text: str, bot_response: str) -> None:
         MEMORY_DIR.mkdir(exist_ok=True)
         now = datetime.now()
         entry = (
-            f"\n[{now.strftime('%H:%M')}] USER: {user_text[:500]}\n"
-            f"[{now.strftime('%H:%M')}] BOT: {bot_response[:1000]}\n"
+            f"\n[{now.strftime('%H:%M')}] USER: {user_text[:2000]}\n"
+            f"[{now.strftime('%H:%M')}] BOT: {bot_response[:3000]}\n"
         )
         with open(_conv_log_path(now), "a", encoding="utf-8") as f:
             f.write(entry)
@@ -1194,9 +1194,12 @@ def run_in_background(prompt: str, chat_id: int, state: dict, cfg: dict) -> None
         if response:
             response = strip_thinking(response)
             send_telegram(chat_id, response, cfg["telegram_token"])
+            _append_bot_initiated_log("background", response)
             log("[BACKGROUND] Tarefa concluída e entregue")
         else:
-            send_telegram(chat_id, "Tarefa em background falhou.", cfg["telegram_token"])
+            fail_msg = "Tarefa em background falhou."
+            send_telegram(chat_id, fail_msg, cfg["telegram_token"])
+            _append_bot_initiated_log("background", fail_msg)
             log("[BACKGROUND] Tarefa falhou")
 
     t = threading.Thread(target=worker, daemon=True)
@@ -1796,6 +1799,7 @@ def handle_text(text: str, chat_id: int, state: dict, cfg: dict) -> None:
                     clarify_idx = scratchpad.find("CLARIFY:")
                     clarify_msg = scratchpad[clarify_idx + 8:].strip() if clarify_idx >= 0 else "Pode detalhar melhor?"
                     send_telegram(chat_id, clarify_msg, token)
+                    _append_conv_log(text, clarify_msg)
                     log(f"[REASONING] Pediu clarificacao: {clarify_msg[:80]}")
                     stop_typing.set()
                     return
@@ -2414,6 +2418,7 @@ def handle_command(cmd_text: str, chat_id: int, state: dict, cfg: dict) -> None:
             send_telegram(chat_id, "Buscando...", token)
             result = search_memory_semantic(query, cfg)
             send_telegram(chat_id, result, token)
+            _append_conv_log(f"/buscar {query}", result)
             log(f"[CMD] /buscar '{query}' — {len(result)} chars retornados")
         else:
             send_telegram(chat_id, "Use: /buscar <termo>\nExemplo: /buscar decisão campanha", token)
