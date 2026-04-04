@@ -649,12 +649,17 @@ _EXTRACT_PROMPT_SUFFIX = (
     "Inferencia, deducao e interpretacao de contexto NAO sao fatos. Sao hipoteses.\n"
     "Exemplos do que NAO e fato: interpretar exemplos hipoteticos como preferencias reais,\n"
     "deduzir profissao a partir de ferramentas mencionadas, assumir rotina a partir de horarios.\n\n"
+    "Atencao especial:\n"
+    "- Procure por linhas marcadas com [CORRECAO DETECTADA] no log. Cada correcao deve virar uma preference CONFIRMED.\n"
+    "- Observe PADROES DE COMPORTAMENTO: horarios de uso, temas recorrentes, estilo de mensagem (curtas=ocupado, longas=reflexivo).\n"
+    "  Padroes vao no campo patterns.\n\n"
     "Retorne SOMENTE um JSON. Para cada item, classifique como CONFIRMED ou INFERRED:\n"
     "{\n"
     '  "contacts": [{"name": "nome", "phone": "+55...", "email": "...", "context": "...", "confidence": "CONFIRMED"}],\n'
     '  "preferences": [{"rule": "regra de comportamento", "confidence": "CONFIRMED ou INFERRED", "source": "trecho da conversa"}],\n'
     '  "decisions": [{"text": "decisao ou fato", "confidence": "CONFIRMED ou INFERRED", "source": "trecho da conversa"}],\n'
-    '  "tasks": [{"text": "tarefa pendente", "due_date": "YYYY-MM-DD ou null", "due_time": "HH:MM ou null", "confidence": "CONFIRMED"}]\n'
+    '  "tasks": [{"text": "tarefa pendente", "due_date": "YYYY-MM-DD ou null", "due_time": "HH:MM ou null", "confidence": "CONFIRMED"}],\n'
+    '  "patterns": [{"observation": "padrao observado", "evidence": "evidencia no log"}]\n'
     "}\n"
     "CONFIRMED = o usuario disse isso explicitamente, sem ambiguidade.\n"
     "INFERRED = voce deduziu a partir do contexto. Pode estar errado.\n\n"
@@ -746,6 +751,17 @@ def _write_memory_extract(extract: dict, cfg: dict | None = None) -> list[str]:
         with open(MEMORY_FILE, "a", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
 
+    # --- Padroes de comportamento -> MEMORY.md ---
+    patterns = [p for p in extract.get("patterns", []) if isinstance(p, dict) and p.get("observation")]
+    if patterns:
+        lines = [f"\n## Padroes observados em {now_str}"]
+        for p in patterns:
+            evidence = p.get("evidence", "")
+            lines.append(f"- {p['observation']}" + (f" (evidencia: {evidence})" if evidence else ""))
+            saved.append(f"Padrao: {p['observation'][:70]}")
+        with open(MEMORY_FILE, "a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+
     # --- Tarefas → reminders.json ---
     # Só cria lembrete se o usuário informou data explícita; sem data = só nota em MEMORY.md
     tz_brt = _get_local_tz()
@@ -762,6 +778,9 @@ def _write_memory_extract(extract: dict, cfg: dict | None = None) -> list[str]:
                 continue
             # Sem data explícita: não criar lembrete automático
             if not due_date:
+                with open(MEMORY_FILE, "a", encoding="utf-8") as f:
+                    f.write(f"\n- [pendente] {text} ({now_str})\n")
+                saved.append(f"Pendencia: {text[:70]}")
                 continue
             try:
                 time_part = due_time if due_time else "08:00"
@@ -956,6 +975,42 @@ def _consolidate_memory_if_needed(cfg: dict, threshold: int = 30) -> None:
     else:
         log("[MEMÓRIA] Consolidação falhou — originais mantidos")
 
+    _consolidate_memory_md(cfg)
+
+
+def _consolidate_memory_md(cfg: dict, max_size_kb: int = 15) -> None:
+    """Consolida MEMORY.md quando fica grande demais, removendo redundancias."""
+    if not MEMORY_FILE.exists():
+        return
+    content = MEMORY_FILE.read_text(encoding="utf-8")
+    if len(content) < max_size_kb * 1024:
+        return
+
+    log(f"[MEMORIA] MEMORY.md tem {len(content) // 1024}KB — consolidando...")
+    prompt = (
+        f"[CONSOLIDACAO DE MEMORY.MD]\n\n{content}\n\n"
+        "---\n"
+        "O arquivo MEMORY.md acima cresceu demais. Reescreva-o de forma consolidada:\n"
+        "1. Remova entradas duplicadas ou redundantes\n"
+        "2. Agrupe fatos por tema (contatos, decisoes, preferencias, padroes, pendencias)\n"
+        "3. Preserve TODAS as informacoes unicas — nao descarte nada que nao seja duplicata\n"
+        "4. Mantenha datas quando relevantes\n"
+        "5. Mantenha marcacoes [pendente], [inferido], [correcao] intactas\n"
+        "6. Formato: markdown com bullet points agrupados por secao\n\n"
+        "Retorne APENAS o markdown consolidado, sem explicacao."
+    )
+    response, _ = call_claude(prompt, None, cfg)
+    if response and len(response) > 200:
+        backup = MEMORY_DIR / f"MEMORY-backup-{datetime.now().strftime('%Y%m%d-%H%M')}.md"
+        backup.write_text(content, encoding="utf-8")
+        MEMORY_FILE.write_text(
+            f"# MEMORY.md — Memoria de Longo Prazo\n\n{response}\n",
+            encoding="utf-8",
+        )
+        log(f"[MEMORIA] MEMORY.md consolidado: {len(content) // 1024}KB -> {len(response) // 1024}KB (backup: {backup.name})")
+    else:
+        log("[MEMORIA] Consolidacao do MEMORY.md falhou — mantido original")
+
 
 # ---------------------------------------------------------------------------
 # Lembretes agendados
@@ -1123,9 +1178,12 @@ def run_heartbeat(cfg: dict, state: dict) -> None:
             # Contexto mínimo: apenas HEARTBEAT.md + TOOLS.md
             # Não usa build_session_context() completo para não desperdiçar tokens
             tools_content = read_if_exists(BASE_DIR / "TOOLS.md")
+            behavior_content = read_if_exists(BASE_DIR / "BEHAVIOR.md")
             context_parts = [f"[INSTRUÇÕES DE HEARTBEAT]\n{heartbeat_instructions}"]
             if tools_content:
                 context_parts.append(f"[FERRAMENTAS DISPONÍVEIS]\n{tools_content}")
+            if behavior_content:
+                context_parts.append(f"[REGRAS DE COMPORTAMENTO]\n{behavior_content}")
             minimal_context = "[CONTEXTO HEARTBEAT]\n\n" + "\n\n---\n\n".join(context_parts) + "\n\n[FIM DO CONTEXTO]"
 
             prompt = "HEARTBEAT PROATIVO — verificação automática. Siga as instruções acima."
@@ -1271,26 +1329,36 @@ _CORRECTION_PATTERN = re.compile(
     r'\b(nao era isso|errado|errou|incorreto|'
     r'entendeu errado|interpretou errado|'
     r'nao foi o que (eu )?pedi|diferente do que pedi|'
-    r'ta errado|tava errado|nao e isso|nao era isso)\b',
+    r'ta errado|tava errado|nao e isso|nao era isso|'
+    r'nao e assim|voce nao entendeu|faz diferente|'
+    r'isso nao foi|nao era pra|nao quero assim|'
+    r'de novo nao|para de|nunca mais)\b',
     re.IGNORECASE
 )
 
 
 def capture_feedback(user_text: str, state: dict) -> None:
-    """Detecta correcao explicita e registra no conv-log."""
+    """Detecta correcao explicita e persiste em BEHAVIOR.md + conv-log."""
     if not _CORRECTION_PATTERN.search(user_text):
         return
     last_response = state.get("last_bot_response", "")
     if not last_response:
         return
     log(f"[FEEDBACK] Correcao detectada: {user_text[:80]}")
-    # Registra no conv-log com marcacao
+    now = datetime.now()
     try:
-        now = datetime.now()
         with open(_conv_log_path(now), "a", encoding="utf-8") as f:
             f.write(f"[{now.strftime('%H:%M')}] [CORRECAO DETECTADA]\n")
             f.write(f"  Resposta anterior: {last_response[:500]}\n")
             f.write(f"  Correcao: {user_text[:500]}\n\n")
+    except Exception:
+        pass
+    try:
+        with open(BASE_DIR / "BEHAVIOR.md", "a", encoding="utf-8") as f:
+            f.write(f"\n## Correcao registrada em {now.strftime('%Y-%m-%d %H:%M')}\n")
+            f.write(f"- O usuario disse: {user_text[:300]}\n")
+            f.write(f"- Resposta que causou a correcao: {last_response[:200]}\n")
+            f.write(f"- **Regra: nao repetir esse comportamento.**\n")
     except Exception:
         pass
 
