@@ -529,6 +529,7 @@ def build_session_context(user_message: str | None = None) -> str | None:
     # SOUL.md, AGENTS.md e IDENTITY.md foram absorvidos pelo CORE.md
     static_files: list[tuple[str, Path]] = [
         ("COMO PENSAR E AGIR", BASE_DIR / "CORE.md"),
+        ("REGRAS DO SISTEMA", BASE_DIR / "CLAUDE.md"),
         ("PERFIL DO USUÁRIO", BASE_DIR / "USER.md"),
         ("COMPORTAMENTO ATIVO", BASE_DIR / "BEHAVIOR.md"),
     ]
@@ -1184,6 +1185,34 @@ def run_heartbeat(cfg: dict, state: dict) -> None:
                 context_parts.append(f"[FERRAMENTAS DISPONÍVEIS]\n{tools_content}")
             if behavior_content:
                 context_parts.append(f"[REGRAS DE COMPORTAMENTO]\n{behavior_content}")
+
+            # Briefing matinal: primeiro heartbeat do dia inclui visao completa
+            tz_brt = _get_local_tz()
+            hora_atual = datetime.now(tz_brt).hour
+            is_morning_briefing = hora_atual < 10 and len(_heartbeat_sent_today) == 0
+
+            if is_morning_briefing:
+                memory_content = read_if_exists(MEMORY_FILE)
+                pending_tasks = []
+                if memory_content:
+                    for line in memory_content.split("\n"):
+                        if "[pendente]" in line.lower():
+                            pending_tasks.append(line.strip().lstrip("- "))
+
+                briefing_extra = (
+                    "\n\n[BRIEFING MATINAL]\n"
+                    "Este e o primeiro heartbeat do dia. Faca um briefing completo:\n"
+                    "1. Agenda COMPLETA de hoje (todos os eventos, nao so proximos 60min)\n"
+                    "2. Emails nao lidos que precisam de acao HOJE\n"
+                    "3. Lembretes pendentes para hoje\n"
+                )
+                if pending_tasks:
+                    briefing_extra += "4. Tarefas pendentes sem data (pergunte se ainda sao relevantes):\n"
+                    for t in pending_tasks[:5]:
+                        briefing_extra += f"   - {t}\n"
+                briefing_extra += "\nFormato: direto, sem introducao. Lista organizada por prioridade."
+                context_parts.append(briefing_extra)
+
             minimal_context = "[CONTEXTO HEARTBEAT]\n\n" + "\n\n---\n\n".join(context_parts) + "\n\n[FIM DO CONTEXTO]"
 
             prompt = "HEARTBEAT PROATIVO — verificação automática. Siga as instruções acima."
@@ -1385,6 +1414,8 @@ class MessageType(Enum):
     SIMPLE = "simple"
     QUESTION = "question"
     TASK = "task"
+    TASK_SIMPLE = "task_simple"
+    URGENT = "urgent"
     DESTRUCTIVE = "destructive"
     MEMORY_QUERY = "memory_query"
 
@@ -1399,6 +1430,14 @@ _TASK_PATTERNS = re.compile(
     r'marca|marque|adiciona|adicione|edita|modifica|reagenda|'
     r'gera|prepara|redige|liste|resume)\b', re.IGNORECASE)
 
+_TASK_SIMPLE_PATTERNS = re.compile(
+    r'\b(ve\s+minh|veja\s+minh|mostra\s+minh|como\s+t[aá]|'
+    r'puxa|checa|verifica|qual|quais|quanto|quando)\b', re.IGNORECASE)
+
+_URGENT_PATTERNS = re.compile(
+    r'\b(urgente|rapido|agora|em\s+\d+\s*min|correndo|pressa|'
+    r'antes\s+da\s+reuniao|ja\s+ja|imediato)\b', re.IGNORECASE)
+
 
 def classify_message(text: str) -> MessageType:
     clean = text.strip()
@@ -1406,9 +1445,13 @@ def classify_message(text: str) -> MessageType:
         return MessageType.SIMPLE
     if clean.lower().startswith("/buscar"):
         return MessageType.MEMORY_QUERY
+    if _URGENT_PATTERNS.search(clean):
+        return MessageType.URGENT
     if _DESTRUCTIVE_PATTERNS.search(clean):
         return MessageType.DESTRUCTIVE
     if _TASK_PATTERNS.search(clean):
+        if _TASK_SIMPLE_PATTERNS.search(clean) and not _DESTRUCTIVE_PATTERNS.search(clean):
+            return MessageType.TASK_SIMPLE
         return MessageType.TASK
     return MessageType.QUESTION
 
@@ -1419,7 +1462,7 @@ def build_turn_context(msg_type: MessageType, state: dict) -> str:
 
     now = datetime.now()
 
-    if msg_type in (MessageType.TASK, MessageType.DESTRUCTIVE):
+    if msg_type in (MessageType.TASK, MessageType.TASK_SIMPLE, MessageType.DESTRUCTIVE, MessageType.URGENT):
         tz_brt = _get_local_tz()
         now_brt = now.astimezone(tz_brt) if now.tzinfo else now.replace(tzinfo=tz_brt)
         cfg_tz_name = load_config().get("timezone", "America/Sao_Paulo")
@@ -1856,7 +1899,8 @@ def handle_text(text: str, chat_id: int, state: dict, cfg: dict) -> None:
         msg_type = classify_message(text)
         log(f"[ROUTER] Tipo: {msg_type.value}")
 
-        # Reasoning Gate para TASK e DESTRUCTIVE
+        # Reasoning Gate: so para TASK complexa e DESTRUCTIVE
+        # TASK_SIMPLE (consultas) e URGENT pulam o gate para responder mais rapido
         scratchpad = None
         if msg_type in (MessageType.TASK, MessageType.DESTRUCTIVE):
             if cfg.get("reasoning_gate_enabled", True):
