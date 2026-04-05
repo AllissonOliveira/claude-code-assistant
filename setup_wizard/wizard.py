@@ -352,7 +352,8 @@ def generate_config(token: str, chat_id: int | None, profile: dict) -> None:
     config_path = os.path.join(project_dir, "config.json")
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
-    print_ok("config.json gerado")
+    os.chmod(config_path, 0o600)
+    print_ok("config.json gerado (permissoes: apenas seu usuario pode ler)")
 
 
 def _escrever(path: str, content: str) -> None:

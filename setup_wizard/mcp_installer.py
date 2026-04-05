@@ -49,6 +49,7 @@ def load_claude_json() -> dict:
 def save_claude_json(data: dict) -> None:
     tmp = CLAUDE_JSON.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    tmp.chmod(0o600)
     tmp.replace(CLAUDE_JSON)
 
 
@@ -154,15 +155,20 @@ def install_mcp(mcp: dict, shared_creds: dict) -> bool:
         if idx == 0:
             return True
 
-    # Pre-install
+    # Pre-install (sem shell=True por seguranca)
     pre = mcp.get("pre_install")
-    if pre and isinstance(pre, str) and pre.strip().startswith(("pip", "apt", "brew", "curl", "cd")):
-        print(f"  {YELLOW}Instalando dependencias automaticamente...{RESET}")
-        result = subprocess.run(pre, shell=True, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"  {YELLOW}Aviso na instalacao de dependencias (pode ser ignorado).{RESET}")
+    if pre and isinstance(pre, str) and pre.strip().startswith(("pip", "apt", "brew", "curl")):
+        # Rejeitar comandos com operadores shell perigosos
+        if any(op in pre for op in ("&&", "||", ";", "|", ">", "<", "`", "$(")):
+            print(f"  {YELLOW}Comando de pre-install contem operadores nao permitidos.{RESET}")
+            print(f"  Execute manualmente: {pre}")
         else:
-            print(f"  {GREEN}Dependencias instaladas.{RESET}")
+            print(f"  {YELLOW}Instalando dependencias automaticamente...{RESET}")
+            result = subprocess.run(pre.split(), capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"  {YELLOW}Aviso na instalacao de dependencias (pode ser ignorado).{RESET}")
+            else:
+                print(f"  {GREEN}Dependencias instaladas.{RESET}")
     elif pre:
         # Instrucoes manuais
         print(f"\n  {BOLD}Esta integracao precisa de alguns passos manuais:{RESET}\n")

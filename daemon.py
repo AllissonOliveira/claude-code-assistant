@@ -181,6 +181,7 @@ def _save_state_locked(state: dict) -> None:
     """Escrita atômica: grava em temp e faz rename para evitar corrupção."""
     tmp = STATE_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, indent=2, default=str))
+    tmp.chmod(0o600)
     tmp.replace(STATE_FILE)
 
 

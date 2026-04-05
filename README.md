@@ -238,6 +238,18 @@ journalctl --user -u claude-assistant.service -f
 
 ---
 
+## Seguranca
+
+Este projeto acessa dados pessoais e credenciais sensiveis. Algumas precaucoes:
+
+- **config.json** contem seu token Telegram. O wizard configura permissoes restritas (0o600), mas verifique: `chmod 600 config.json`
+- **MEMORY.md e USER.md** contem dados pessoais (contatos, preferencias, decisoes). Sao protegidos pelo `.gitignore` e nunca vao pro GitHub
+- **Use Full Disk Encryption**: FileVault (macOS) ou LUKS (Linux)
+- **Nao execute em servidores compartilhados**: o bot tem acesso a emails, agenda e mensagens
+- **Token do Telegram**: se vazar, revogue imediatamente via @BotFather e gere um novo
+
+---
+
 ## Documentacao
 
 - [Guia do Usuario](docs/USER_GUIDE.md) - como usar o bot no dia a dia
