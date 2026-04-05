@@ -341,8 +341,8 @@ def generate_config(token: str, chat_id: int | None, profile: dict) -> None:
         "session_timeout_hours": 3,
         "max_retry_attempts": 3,
         "retry_backoff_seconds": [5, 10, 30],
-        "heartbeat_interval_minutes": 30,
-        "heartbeat_times": ["09:00", "13:00", "18:00"],
+        "heartbeat_interval_minutes": profile.get("heartbeat_interval", 30),
+        "heartbeat_times": profile.get("heartbeat_times", ["09:00", "13:00", "18:00"]),
         "reasoning_gate_enabled": True,
         "whisper_bin": "",
         "whisper_model": "base",
@@ -454,6 +454,39 @@ def collect_bot_config(profile: dict) -> None:
         code = input(f"\n  Codigo ISO 639-1 do idioma (ex: fr, de, it): ").strip().lower()
         profile["language_code"] = code if code else "pt"
     print_ok(f"Idioma de audio: {profile['language_code']}")
+
+    # Avisos proativos (heartbeat)
+    print(f"\n  {BOLD}O bot pode verificar sua agenda e emails periodicamente{RESET}")
+    print(f"  {BOLD}e te avisar se tiver algo importante. Como quer configurar?{RESET}\n")
+    hb_idx = escolha([
+        "Avisos nos horarios padrao (9h, 13h, 18h)",
+        "Definir meus proprios horarios",
+        "Desligar avisos proativos",
+    ])
+    if hb_idx == 0:
+        profile["heartbeat_times"] = ["09:00", "13:00", "18:00"]
+        profile["heartbeat_interval"] = 30
+        print_ok("Avisos configurados: 9h, 13h, 18h + verificacao a cada 30 min")
+    elif hb_idx == 1:
+        print(f"\n  Digite os horarios separados por virgula (ex: 08:00, 12:00, 17:00)")
+        raw = input("  Horarios: ").strip()
+        times = [t.strip() for t in raw.split(",") if t.strip()]
+        if not times:
+            times = ["09:00", "13:00", "18:00"]
+            print_aviso("Nenhum horario informado, usando padrao")
+        profile["heartbeat_times"] = times
+        print(f"\n  {BOLD}Com que frequencia verificar entre esses horarios?{RESET}\n")
+        freq_idx = escolha([
+            "A cada 30 minutos",
+            "A cada 1 hora",
+            "Apenas nos horarios definidos",
+        ])
+        profile["heartbeat_interval"] = [30, 60, 0][freq_idx]
+        print_ok(f"Horarios: {', '.join(times)}")
+    else:
+        profile["heartbeat_times"] = []
+        profile["heartbeat_interval"] = 0
+        print_ok("Avisos proativos desligados")
 
 
 def collect_profile() -> dict:

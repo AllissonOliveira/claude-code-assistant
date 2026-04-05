@@ -15,7 +15,6 @@ import threading
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
-from enum import Enum
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -44,8 +43,6 @@ HEARTBEAT_FILE = BASE_DIR / "HEARTBEAT.md"
 # ---------------------------------------------------------------------------
 # Timezone helper
 # ---------------------------------------------------------------------------
-_UTC_MINUS_3 = timezone(timedelta(hours=-3))
-
 
 def _get_local_tz(cfg: dict | None = None) -> timezone | ZoneInfo:
     """Retorna o timezone configurado.
@@ -53,16 +50,17 @@ def _get_local_tz(cfg: dict | None = None) -> timezone | ZoneInfo:
     Lê cfg['timezone'] (ex: 'America/Sao_Paulo'). Se ausente ou inválido,
     usa UTC-3 como fallback.
     """
+    _utc_minus_3 = timezone(timedelta(hours=-3))
     if cfg is None:
         try:
             cfg = load_config()
         except Exception:
-            return _UTC_MINUS_3
+            return _utc_minus_3
     tz_name = cfg.get("timezone", "America/Sao_Paulo")
     try:
         return ZoneInfo(tz_name)
     except (ZoneInfoNotFoundError, KeyError):
-        return _UTC_MINUS_3
+        return _utc_minus_3
 
 
 # ---------------------------------------------------------------------------
@@ -1356,18 +1354,6 @@ _RETRY_AUDIO_PATTERN = re.compile(
     re.IGNORECASE
 )
 
-_FAST_PATTERNS = re.compile(
-    r'^('
-    r'(bom\s+dia|boa\s+(tarde|noite)|oi+|e\s*a[ií]|fala(\s+\w+)?|eai|hey|hello?)'
-    r'|obrigad[oa]|valeu|vlw|tmj|show|blz|beleza|top|massa|nice|ok'
-    r'|sim|não|nao|pode\s*ser|bora|vamos|ta\s*bom|tá\s*bom'
-    r'|h[aeiou]h[aeiou]+(h[aeiou])*|kk+|rs+'
-    r'|entendi|perfeito|fechou|combinado'
-    r')[!.,\s]*$',
-    re.IGNORECASE
-)
-
-
 _CORRECTION_PATTERN = re.compile(
     r'\b(nao era isso|errado|errou|incorreto|'
     r'entendeu errado|interpretou errado|'
@@ -1406,149 +1392,6 @@ def capture_feedback(user_text: str, state: dict) -> None:
         pass
 
 
-def _is_simple_message(text: str) -> bool:
-    """Detecta mensagens simples que não precisam de ferramentas/memória.
-
-    Mensagens simples usam --max-turns 1 (sem tool use) para resposta rápida.
-    """
-    clean = text.strip()
-    # Mensagens internas do daemon nunca são simples
-    if clean.startswith("["):
-        return False
-    # Mensagens curtas que batem com padrões de saudação/confirmação
-    if len(clean) < 40 and _FAST_PATTERNS.match(clean):
-        return True
-    return False
-
-
-# ---------------------------------------------------------------------------
-# Classificacao de mensagem e Reasoning Gate
-# ---------------------------------------------------------------------------
-class MessageType(Enum):
-    SIMPLE = "simple"
-    QUESTION = "question"
-    TASK = "task"
-    TASK_SIMPLE = "task_simple"
-    URGENT = "urgent"
-    DESTRUCTIVE = "destructive"
-    MEMORY_QUERY = "memory_query"
-
-
-_DESTRUCTIVE_PATTERNS = re.compile(
-    r'\b(envia\s+(mensagem|email|msg)|manda\s+(mensagem|email|msg)|'
-    r'deleta|remove|apaga|sobrescreve|exclui|cancela)\b', re.IGNORECASE)
-
-_TASK_PATTERNS = re.compile(
-    r'\b(agenda|cria|faz|escreve|analisa|configura|atualiza|'
-    r'verifica|checa|ve\s+minh|veja\s+minh|puxa|busca|pesquisa|'
-    r'marca|marque|adiciona|adicione|edita|modifica|reagenda|'
-    r'gera|prepara|redige|liste|resume)\b', re.IGNORECASE)
-
-_TASK_SIMPLE_PATTERNS = re.compile(
-    r'\b(ve\s+minh|veja\s+minh|mostra\s+minh|como\s+t[aá]|'
-    r'puxa|checa|verifica|qual|quais|quanto|quando)\b', re.IGNORECASE)
-
-_URGENT_PATTERNS = re.compile(
-    r'\b(urgente|rapido|agora|em\s+\d+\s*min|correndo|pressa|'
-    r'antes\s+da\s+reuniao|ja\s+ja|imediato)\b', re.IGNORECASE)
-
-
-def classify_message(text: str) -> MessageType:
-    clean = text.strip()
-    if _FAST_PATTERNS.match(clean):
-        return MessageType.SIMPLE
-    if clean.lower().startswith("/buscar"):
-        return MessageType.MEMORY_QUERY
-    if _URGENT_PATTERNS.search(clean):
-        return MessageType.URGENT
-    if _DESTRUCTIVE_PATTERNS.search(clean):
-        return MessageType.DESTRUCTIVE
-    if _TASK_PATTERNS.search(clean):
-        if _TASK_SIMPLE_PATTERNS.search(clean) and not _DESTRUCTIVE_PATTERNS.search(clean):
-            return MessageType.TASK_SIMPLE
-        return MessageType.TASK
-    return MessageType.QUESTION
-
-
-def build_turn_context(msg_type: MessageType, state: dict) -> str:
-    """Monta contexto adicional especifico para o tipo de mensagem atual."""
-    parts = []
-
-    now = datetime.now()
-
-    if msg_type in (MessageType.TASK, MessageType.TASK_SIMPLE, MessageType.DESTRUCTIVE, MessageType.URGENT):
-        tz_brt = _get_local_tz()
-        now_brt = now.astimezone(tz_brt) if now.tzinfo else now.replace(tzinfo=tz_brt)
-        cfg_tz_name = load_config().get("timezone", "America/Sao_Paulo")
-        parts.append(f"[DATA/HORA ATUAL] {now_brt.strftime('%Y-%m-%d %H:%M')} ({cfg_tz_name})")
-
-        try:
-            reminders = load_reminders()
-            pending = [r for r in reminders if not r.get("sent")]
-            if pending:
-                lines = [f"- {r.get('text', '?')[:80]} ({r.get('due_at', '?')[:16]})" for r in pending[:5]]
-                parts.append("[LEMBRETES PENDENTES]\n" + "\n".join(lines))
-        except Exception:
-            pass
-
-    if msg_type == MessageType.DESTRUCTIVE:
-        behavior = read_if_exists(BASE_DIR / "BEHAVIOR.md")
-        if behavior:
-            parts.append(f"[REGRAS DE COMPORTAMENTO]\n{behavior}")
-
-    return "\n\n".join(parts) if parts else ""
-
-
-_REASONING_PROMPT = (
-    "[ANALISE PREVIA -- nao e a resposta final]\n\n"
-    "Mensagem: {mensagem}\n\n"
-    "Complete este scratchpad:\n\n"
-    "ENTENDIMENTO: O que esta sendo pedido, em uma frase.\n"
-    "DEPENDENCIAS: Que informacoes ou ferramentas sao necessarias?\n"
-    "RISCOS: Algo pode dar errado? Sim/Nao. Se sim, o que?\n"
-    "ABORDAGEM: Como resolver? Passos concretos.\n"
-    "CONFIANCA: Alta / Media / Baixa. Por que?\n\n"
-    "Se confianca Baixa: termine com CLARIFY: <pergunta precisa ao usuario>\n"
-    "Se confianca Alta ou Media: termine com PROCEED"
-)
-
-
-def run_reasoning_gate(text: str, cfg: dict) -> tuple[str | None, bool]:
-    """Executa analise previa antes da acao. Retorna (scratchpad, should_clarify)."""
-    prompt = _REASONING_PROMPT.format(mensagem=text)
-    response, _ = call_claude(prompt, None, cfg)
-    if not response:
-        return None, False
-    should_clarify = "CLARIFY:" in response
-    return response, should_clarify
-
-
-_REVIEW_PROMPT = (
-    "[AUTO-REVISAO]\n\n"
-    "Resposta gerada:\n{resposta}\n\n"
-    "Verifique:\n"
-    "1. FACTUAL: ha afirmacao sem certeza de que e verdadeira?\n"
-    "2. IRREVERSIVEL: instrui acao que nao pode ser desfeita sem confirmacao explicita do usuario?\n"
-    "3. COMPLETO: falta informacao que o usuario precisaria?\n\n"
-    "Se tudo OK: responda exatamente APPROVED\n"
-    "Se ha problema: responda REVISE: <problema em uma frase>"
-)
-
-
-def run_self_review(response: str, cfg: dict) -> tuple[str, bool, str]:
-    """Auto-revisao da resposta antes de enviar. Retorna (response, was_revised, reason)."""
-    prompt = _REVIEW_PROMPT.format(resposta=response)
-    review, _ = call_claude(prompt, None, cfg)
-    if not review:
-        return response, False, ""
-    if "REVISE:" in review:
-        reason = review.split("REVISE:", 1)[1].strip()
-        log(f"[REVIEW] Revisao solicitada: {reason[:80]}")
-        return response, True, reason
-    log("[REVIEW] APPROVED")
-    return response, False, ""
-
-
 def call_claude(
     prompt: str,
     session_id: str | None,
@@ -1561,37 +1404,31 @@ def call_claude(
     Args:
         on_progress: callback(seconds_elapsed) chamado a cada 15s durante execução.
                      Serve pra atualizar o usuário, não pra matar o processo.
-        force_full_turns: desabilita o fast path (--max-turns 1). Usado no bootstrap
-                          para garantir que o Claude pode usar ferramentas (ex: salvar arquivos).
+        force_full_turns: reservado para uso futuro (ignorado atualmente).
 
     Na última tentativa, descarta --resume se a sessão parece podre, criando
     uma nova sessão ao invés de falhar silenciosamente por horas.
-
-    Mensagens simples (saudações, confirmações) usam --max-turns 1 para
-    resposta rápida sem tool use.
     """
     project_dir = cfg["project_dir"]
     max_retries = cfg.get("max_retry_attempts", 3)
     backoff = cfg.get("retry_backoff_seconds", [5, 10, 30])
 
     # Injeta timestamp atual para que o Claude calcule horários relativos corretamente
-    tz_brt = _get_local_tz(cfg)
-    now_brt = datetime.now(tz_brt)
-    cfg_tz_name = cfg.get("timezone", "America/Sao_Paulo")
-    ts_header = f"[Agora: {now_brt.strftime('%Y-%m-%d %H:%M')} ({cfg_tz_name})]\n\n"
+    cfg_tz = cfg.get("timezone", "America/Sao_Paulo")
+    try:
+        import zoneinfo
+        now_local = datetime.now(zoneinfo.ZoneInfo(cfg_tz))
+    except Exception:
+        now_local = datetime.now(timezone(timedelta(hours=-3)))
+    ts_header = f"[Agora: {now_local.strftime('%Y-%m-%d %H:%M')} ({cfg_tz})]\n\n"
     prompt_with_ts = ts_header + prompt
-
-    # Roteamento: mensagens simples → resposta rápida sem tools
-    # Desabilitado no bootstrap: Claude precisa de tool use para salvar arquivos
-    fast_mode = _is_simple_message(prompt) and not force_full_turns
 
     base_cmd = [
         "claude", "-p", prompt_with_ts,
         "--output-format", "json",
         "--model", cfg.get("claude_model", "sonnet"),
+        "--max-turns", "10",
     ]
-    if fast_mode:
-        base_cmd += ["--max-turns", "1"]
 
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
 
@@ -1857,6 +1694,37 @@ def handle_intervalo_flow(text: str, chat_id: int, cfg: dict) -> bool:
     return False
 
 
+def _build_always_context() -> str:
+    """Contexto injetado em TODA mensagem: data/hora e lembretes."""
+    parts = []
+
+    # Data/hora atual
+    cfg = load_config()
+    cfg_tz = cfg.get("timezone", "America/Sao_Paulo")
+    try:
+        import zoneinfo
+        now_local = datetime.now(zoneinfo.ZoneInfo(cfg_tz))
+    except Exception:
+        tz_brt = timezone(timedelta(hours=-3))
+        now_local = datetime.now(tz_brt)
+
+    dia_semana = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"]
+    dow = dia_semana[now_local.weekday()]
+    parts.append(f"[DATA/HORA ATUAL] {dow}, {now_local.strftime('%Y-%m-%d %H:%M')} ({cfg_tz})")
+
+    # Lembretes pendentes
+    try:
+        reminders = load_reminders()
+        pending = [r for r in reminders if not r.get("sent")]
+        if pending:
+            lines = [f"- {r.get('text', '?')[:80]} ({r.get('due_at', '?')[:16]})" for r in pending[:5]]
+            parts.append("[LEMBRETES PENDENTES]\n" + "\n".join(lines))
+    except Exception:
+        pass
+
+    return "\n\n".join(parts) if parts else ""
+
+
 def handle_text(text: str, chat_id: int, state: dict, cfg: dict) -> None:
     """Processa mensagem de texto. GARANTE que o usuário sempre recebe resposta."""
     token = cfg["telegram_token"]
@@ -1909,29 +1777,6 @@ def handle_text(text: str, chat_id: int, state: dict, cfg: dict) -> None:
                     _progress_sent[0] = threshold
                     break
 
-        # Classifica a mensagem
-        msg_type = classify_message(text)
-        log(f"[ROUTER] Tipo: {msg_type.value}")
-
-        # Reasoning Gate: so para TASK complexa e DESTRUCTIVE
-        # TASK_SIMPLE (consultas) e URGENT pulam o gate para responder mais rapido
-        scratchpad = None
-        if msg_type in (MessageType.TASK, MessageType.DESTRUCTIVE):
-            if cfg.get("reasoning_gate_enabled", True):
-                log("[REASONING] Executando analise previa...")
-                scratchpad, should_clarify = run_reasoning_gate(text, cfg)
-                if should_clarify and scratchpad:
-                    # Extrai a pergunta de clarificacao
-                    clarify_idx = scratchpad.find("CLARIFY:")
-                    clarify_msg = scratchpad[clarify_idx + 8:].strip() if clarify_idx >= 0 else "Pode detalhar melhor?"
-                    send_telegram(chat_id, clarify_msg, token)
-                    _append_conv_log(text, clarify_msg)
-                    log(f"[REASONING] Pediu clarificacao: {clarify_msg[:80]}")
-                    stop_typing.set()
-                    return
-                if scratchpad:
-                    log(f"[REASONING] Analise concluida: PROCEED")
-
         # Injeta contexto completo (CORE, USER, BEHAVIOR, MEMORY) na primeira msg real
         enriched = inject_context_if_needed(text, state.get("session_id"), user_message=text)
 
@@ -1953,10 +1798,10 @@ def handle_text(text: str, chat_id: int, state: dict, cfg: dict) -> None:
             state["needs_context_refresh"] = False
             save_state(state)
 
-        # Contexto adicional especifico para o tipo de mensagem
-        turn_context = build_turn_context(msg_type, state)
-        if turn_context:
-            enriched = f"{turn_context}\n\n---\n\n{enriched}"
+        # Sempre injeta data/hora e lembretes pendentes
+        turn_ctx = _build_always_context()
+        if turn_ctx:
+            enriched = f"{turn_ctx}\n\n---\n\n{enriched}"
 
         # Bootstrap: em cada mensagem subsequente, lembra o Claude que está em modo setup
         if is_bootstrap_mode() and _context_injected_for_session == state.get("session_id"):
@@ -1966,10 +1811,6 @@ def handle_text(text: str, chat_id: int, state: dict, cfg: dict) -> None:
                 "Recuse outras tarefas e redirecione gentilmente se necessário.]\n\n"
                 + enriched
             )
-
-        # Pre-fixa o raciocinio previo se disponivel
-        if scratchpad:
-            enriched = f"[RACIOCINIO PREVIO]\n{scratchpad}\n\n---\n\n[AGIR AGORA]\n{enriched}"
 
         # Sem timeout — deixa o Claude trabalhar o tempo que precisar
         response, new_session_id = call_claude(
@@ -1983,18 +1824,6 @@ def handle_text(text: str, chat_id: int, state: dict, cfg: dict) -> None:
         # Remove blocos de raciocinio interno antes de entregar ao usuario
         if response:
             response = strip_thinking(response)
-
-        # Self-review para mensagens DESTRUCTIVE (max 1 retry)
-        if response and msg_type == MessageType.DESTRUCTIVE:
-            response, was_revised, revision_reason = run_self_review(response, cfg)
-            if was_revised:
-                review_prompt = f"[REVISAO NECESSARIA]\n\nProblema identificado: {revision_reason}\n\nResposta original:\n{response}\n\nReescreva corrigindo o problema acima.\n\n{enriched}"
-                revised_response, _ = call_claude(
-                    review_prompt, state.get("session_id"), cfg,
-                    force_full_turns=False,
-                )
-                if revised_response:
-                    response = strip_thinking(revised_response)
 
         if response and response.strip():
             # Atualiza sessão
