@@ -2,24 +2,28 @@
 
 **Transforme o Claude em um assistente pessoal de IA persistente que vive no seu Telegram.**
 
-Ele lembra do contexto entre sessoes, usa ferramentas MCP para acessar sua agenda, email, CRM e muito mais. Roda como daemon em segundo plano no seu Mac (ou Linux).
+Ele lembra do contexto entre sessoes, usa ferramentas MCP para acessar sua agenda, email, WhatsApp, CRM e muito mais. Roda como daemon em segundo plano no seu Mac (ou Linux).
 
 ---
 
 ## Funcionalidades
 
-- **Memoria persistente entre sessoes**  - CORE.md + USER.md + MEMORY.md mantém o contexto vivo entre conversas
-- **Identidade personalizada**  - CORE.md define como o assistente pensa e raciocina
-- **Mensagens de voz via transcricao local**  - faster-whisper + ffmpeg, privado, sem nuvem
-- **Integracoes MCP**  - Google Calendar, Gmail, Meta Ads, HubSpot, Notion, Supabase, Puppeteer e mais
-- **Pipeline de 4 estagios**  - classificacao inteligente, reasoning gate, execucao e auto-revisao
+- **Memoria persistente entre sessoes** - CORE.md + USER.md + MEMORY.md mantem o contexto vivo entre conversas
+- **Identidade personalizada** - CORE.md define como o assistente pensa e raciocina
+- **Toda inteligencia no Claude** - o daemon e infraestrutura, o Claude decide tudo (classificacao, risco, confirmacao, execucao)
+- **Mensagens de voz via transcricao local** - faster-whisper + ffmpeg, privado, sem nuvem
+- **Integracoes MCP** - Google Calendar, Gmail, WhatsApp, HubSpot, Notion, Puppeteer e mais
 - **Gerenciamento de sessoes** com timeout automatico e pre-aquecimento
-- **Notificacoes proativas via heartbeat**  - verifica email e agenda periodicamente
-- **Extracao de memoria com classificacao**  - fatos CONFIRMED e inferencias INFERRED sao separados
-- **Consolidacao automatica de memoria**  - >30 notas sao automaticamente resumidas
-- **Busca semantica**  - comando /buscar <termo> para acessar memória
-- **Execucao de tarefas em segundo plano**  - /bg <tarefa> para trabalhos pesados
-- **Troca de modelo em tempo real**  - /opus /sonnet /haiku
+- **Briefing matinal** - resumo completo do dia (agenda, emails, pendencias) no primeiro aviso
+- **Notificacoes proativas via heartbeat** - verifica email e agenda periodicamente
+- **Extracao de memoria com classificacao** - fatos CONFIRMED e inferencias INFERRED sao separados
+- **Deteccao de padroes de comportamento** - o bot aprende horarios, temas e estilo do usuario
+- **Correcoes persistentes** - quando voce corrige o bot, ele salva a regra e nao repete o erro
+- **Consolidacao automatica de memoria** - notas e MEMORY.md sao comprimidos quando crescem
+- **Configuracao por linguagem natural** - "muda pro opus", "desliga os avisos" direto no chat
+- **Busca semantica** - /buscar para acessar memoria
+- **Execucao de tarefas em segundo plano** - /bg para trabalhos pesados
+- **Troca de modelo em tempo real** - por comando ou linguagem natural
 - **Inicio automatico como LaunchAgent** (macOS) ou servico systemd (Linux)
 
 ---
@@ -35,7 +39,7 @@ pip install -e .
 claude-assistant-setup
 ```
 
-O wizard `/setup` guia voce na criacao do bot no Telegram, configuracao do perfil, selecao de integracoes MCP e instalacao do servico. E a forma principal de instalacao.
+O wizard guia voce na criacao do bot no Telegram, configuracao do perfil, selecao de integracoes MCP e instalacao do servico.
 
 ### Manual (desenvolvimento)
 
@@ -45,12 +49,12 @@ python daemon.py
 
 ---
 
-## Como Funciona  - Arquitetura
+## Como Funciona
 
 ```
 ┌──────────┐     ┌──────────────┐     ┌──────────────────┐
 │ Telegram │◄───►│   Daemon     │◄───►│   Claude CLI     │
-│  (voce)  │     │  (Python)    │     │  (claude -p)     │
+│  (voce)  │     │ (infraestr.) │     │  (inteligencia)  │
 └──────────┘     └──────────────┘     └──────────────────┘
                        │                       │
                   ┌────┴────┐           ┌──────┴────────┐
@@ -58,71 +62,68 @@ python daemon.py
                   │   de    │           │               │
                   │ Memoria │           │ - Calendar    │
                   │         │           │ - Gmail       │
-                  │CORE.md  │           │ - Meta Ads    │
+                  │CORE.md  │           │ - WhatsApp    │
                   │USER.md  │           │ - HubSpot     │
                   │MEMORY.md│           │ - Notion      │
-                  └─────────┘           │ - Supabase    │
-                                        │ - Puppeteer   │
+                  └─────────┘           │ - Puppeteer   │
                                         └───────────────┘
 ```
 
-### Pipeline de Processamento
+### Principio Arquitetural
+
+O daemon e APENAS infraestrutura: recebe mensagens, injeta contexto, envia respostas, salva memoria. Toda decisao inteligente e do Claude: classificacao, analise de risco, confirmacao, execucao e revisao acontecem internamente no raciocinio do Claude.
+
+### Fluxo de Processamento
 
 ```
-Mensagem do Usuario
+Mensagem do Usuario (texto, voz, foto, documento)
         ↓
-   [ Router ]
-   (classifica em SIMPLE, QUESTION, TASK, DESTRUCTIVE, MEMORY_QUERY)
+  [ Daemon recebe ]
+  (polling Telegram, transcricao de audio se necessario)
         ↓
-[ Reasoning Gate ]
-(analise previa: entendimento, dependencias, riscos, abordagem)
+  [ Contexto injetado ]
+  (CORE.md + CLAUDE.md + USER.md + BEHAVIOR.md + MEMORY.md
+   + notas recentes + conv-log + data/hora + lembretes)
         ↓
-  [ Execucao ]
-  (chama Claude com contexto de memoria e ferramentas MCP)
+  [ Claude processa ]
+  (classifica, analisa risco, confirma se necessario,
+   executa com ferramentas MCP, revisa antes de responder)
         ↓
- [ Self-Review ]
- (verifica: factual, irreversivel, completo)
+  [ Daemon entrega ]
+  (envia resposta ao Telegram, registra no conv-log)
         ↓
-  Resposta → Telegram
+  [ Checkpoint de memoria ]
+  (a cada 5 mensagens, extrai fatos e padroes)
 ```
-
-### Fluxo de Memoria
-
-1. **Voce** envia uma mensagem (texto ou voz) para o bot no Telegram
-2. O **Daemon** (processo Python em background) captura via polling da API do Telegram Bot
-3. O daemon injeta contexto: CORE.md + USER.md + MEMORY.md + notas do dia
-4. O daemon classifica a mensagem (SIMPLE, TASK, DESTRUCTIVE, etc)
-5. Se TASK ou DESTRUCTIVE, executa Reasoning Gate (analise previa antes da acao)
-6. Encaminha para o **Claude CLI** (`claude -p --resume <session_id>`)
-7. Claude processa, usa **ferramentas MCP** conforme necessario
-8. Resposta retorna ao Telegram
-9. Se foi primeira mensagem de sessao ou checkpoint atingido, memoria é consolidada
 
 ---
 
 ## Sistema de Memoria
 
-A memoria dá continuidade entre sessoes atraves de quatro arquivos principais:
-
-| Arquivo | Quando é Lido | Quando é Atualizado | Proposito |
+| Arquivo | Quando e Lido | Quando e Atualizado | Proposito |
 |---|---|---|---|
-| **CORE.md** | Inicio de cada sessao | Manualmente pelo usuario | Identidade, personalidade, estilo de raciocinio do assistente |
-| **USER.md** | Inicio de cada sessao | Automaticamente via checkpoint | Perfil do usuario: cargo, empresa, preferencias, estilo de comunicacao |
-| **MEMORY.md** | Inicio de cada sessao | Automaticamente via checkpoint | Fatos e decisoes de longo prazo, lições aprendidas |
-| **CLAUDE.md** | Inicio de cada sessao | Manualmente pelo usuario | Prompt de sistema, ferramentas disponiveis, regras de comportamento |
+| **CORE.md** | Inicio de cada sessao | Manualmente pelo usuario | Identidade, personalidade, protocolo de raciocinio |
+| **CLAUDE.md** | Inicio de cada sessao | Manualmente pelo usuario | Regras operacionais (Calendar, lembretes, config) |
+| **USER.md** | Inicio de cada sessao | Automaticamente via checkpoint | Perfil do usuario: cargo, contatos, preferencias |
+| **BEHAVIOR.md** | Inicio de cada sessao + heartbeat | Automaticamente quando usuario corrige o bot | Regras de comportamento e correcoes |
+| **MEMORY.md** | Inicio de cada sessao | Automaticamente via checkpoint | Fatos, decisoes, padroes, pendencias |
 
-Além disso:
-- **memory/YYYY-MM-DD.md**  - notas diarias capturando decisoes, tarefas, contexto
-- **memory/YYYY-MM-HHMM.md**  - resumos manuais via /nova quando transição de sessao
-- **Consolidacao automatica**  - quando ha >30 notas, as 10 mais antigas sao resumidas em memory/YYYY-MM-summary.md
+Alem disso:
+- **memory/YYYY-MM-DD.md** - notas diarias capturando decisoes, tarefas, contexto
+- **memory/conv-YYYY-MM-DD.md** - log bruto de conversas
+- **Consolidacao automatica** - MEMORY.md e comprimido quando passa de 15KB, notas antigas sao resumidas quando passam de 30 arquivos
 
 ### Checkpoint de Memoria
 
 A cada 5 mensagens (ou ao final de sessao), o daemon:
-1. Pede ao Claude para extrair informacoes novo sobre voce: contatos, preferencias, decisoes
+1. Pede ao Claude para extrair informacoes novas: contatos, preferencias, decisoes, padroes, tarefas
 2. Classifica cada item como CONFIRMED (dito explicitamente) ou INFERRED (deduzido)
-3. Atualiza USER.md (so CONFIRMED) ou MEMORY.md (so fatos confirmados)
-4. Marca INFERRED com comentario indicando confiança
+3. Atualiza USER.md (contatos e preferencias) e MEMORY.md (decisoes, padroes, pendencias)
+4. Marca no conv-log ate onde processou para nao duplicar
+
+### Correcoes Automaticas
+
+Quando voce corrige o bot ("errado", "nao era isso", "para de fazer X"), o daemon detecta e salva a correcao em BEHAVIOR.md com a regra e o contexto. O bot nao repete o erro.
 
 ---
 
@@ -134,49 +135,39 @@ A cada 5 mensagens (ou ao final de sessao), o daemon:
 | `/nova` | Nova sessao (salva memoria antes) |
 | `/modelo` | Mostrar modelo atual |
 | `/opus` `/sonnet` `/haiku` | Trocar modelo do Claude |
-| `/memory` | Listar ultimas 10 memorias salvas |
+| `/memory` | Listar ultimas memorias salvas |
 | `/buscar <termo>` | Buscar semanticamente nas memorias |
 | `/bg <tarefa>` | Executar tarefa em segundo plano |
 | `/intervalo` | Configurar intervalo de heartbeat |
 | `/configurar` | Abrir menu de configuracao |
-| `/contexto` | Injetar contexto manual na sessao |
-| `/pular` | Pular ciclo de heartbeat |
 
-**Dica:** Qualquer mensagem que nao comece com `/` é encaminhada ao Claude. Mensagens de voz sao transcritas localmente via faster-whisper.
+**Dica:** Voce tambem pode mudar configuracoes por linguagem natural: "muda pro opus", "desliga os avisos proativos", "muda o heartbeat pra 1 hora".
+
+Para um guia completo de uso, veja [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
 ---
 
 ## Requisitos
 
 - **Python 3.12+**
-- **Claude Code CLI**  - instalado e autenticado ([guia](https://docs.anthropic.com/en/docs/claude-cli))
-- **Conta no Telegram**  - com bot criado via [@BotFather](https://t.me/BotFather)
-- **Opcional:** faster-whisper para transcrição local de audio (mais rápido e privado que Whisper padrão)
+- **Claude Code CLI** - instalado e autenticado ([guia](https://docs.anthropic.com/en/docs/claude-cli))
+- **Conta no Telegram** - com bot criado via [@BotFather](https://t.me/BotFather)
+- **Opcional:** faster-whisper para transcricao local de audio
 - **Opcional:** ffmpeg para conversao de audio
 
 ### Instalacao de Dependencias (macOS)
 
 ```bash
-# Python 3.12+
 brew install python@3.12
-
-# ffmpeg (para conversao de audio)
 brew install ffmpeg
-
-# faster-whisper (opcional mas recomendado)
 pip install faster-whisper
 ```
 
 ### Instalacao de Dependencias (Linux)
 
 ```bash
-# Python 3.12+
 sudo apt-get install python3.12
-
-# ffmpeg
 sudo apt-get install ffmpeg
-
-# faster-whisper
 pip install faster-whisper
 ```
 
@@ -184,7 +175,7 @@ pip install faster-whisper
 
 ## Configuracao
 
-Apos rodar o assistente de configuracao, seu `config.json` ficará assim:
+Apos rodar o assistente de configuracao, seu `config.json` ficara assim:
 
 ```json
 {
@@ -199,7 +190,6 @@ Apos rodar o assistente de configuracao, seu `config.json` ficará assim:
   "retry_backoff_seconds": [5, 10, 30],
   "heartbeat_interval_minutes": 30,
   "heartbeat_times": ["09:00", "13:00", "18:00"],
-  "reasoning_gate_enabled": true,
   "whisper_bin": "",
   "whisper_model": "base",
   "whisper_language": "pt",
@@ -216,7 +206,6 @@ Apos rodar o assistente de configuracao, seu `config.json` ficará assim:
 | `session_timeout_hours` | Resetar sessao apos N horas de inatividade |
 | `heartbeat_interval_minutes` | Intervalo de verificacao proativa (0 = desativado) |
 | `heartbeat_times` | Horarios fixos para verificacao (ex: `["09:00", "18:00"]`) |
-| `reasoning_gate_enabled` | Ativa analise previa antes de executar tarefas |
 | `whisper_model` | `base` (padrao), `small`, `medium`, `large` |
 | `whisper_language` | Codigo ISO 639-1 do idioma (ex: `pt`, `en`) |
 | `timezone` | Fuso horario IANA (ex: `America/Sao_Paulo`) |
@@ -241,22 +230,19 @@ tail -f logs/daemon.log
 ### Linux (systemd)
 
 ```bash
-# Ativar e iniciar
 systemctl --user enable claude-assistant.service
 systemctl --user start claude-assistant.service
-
-# Verificar status
 systemctl --user status claude-assistant.service
-
-# Ver logs
 journalctl --user -u claude-assistant.service -f
 ```
 
 ---
 
-## Inspiracao
+## Documentacao
 
-Este projeto foi inspirado pela abordagem do [OpenClaw](https://github.com/openclaw/openclaw) para assistentes persistentes  - em particular a arquitetura SOUL.md/USER.md/MEMORY.md (renomeada para CORE.md/USER.md/MEMORY.md neste projeto) para dar aos agentes de IA identidade, memoria e continuidade.
+- [Guia do Usuario](docs/USER_GUIDE.md) - como usar o bot no dia a dia
+- [Arquitetura](docs/ARCHITECTURE.md) - detalhes tecnicos
+- [Integracoes MCP](docs/MCP_INTEGRATIONS.md) - servicos disponiveis
 
 ---
 
@@ -275,5 +261,3 @@ Pull requests sao bem-vindos. Para mudancas grandes, abra uma issue primeiro.
 3. Commit (`git commit -m 'Adiciona minha feature'`)
 4. Push (`git push origin feature/minha-feature`)
 5. Abra um Pull Request
-
-Atualize testes e documentacao conforme necessário.
