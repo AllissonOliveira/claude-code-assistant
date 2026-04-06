@@ -1450,8 +1450,11 @@ def call_claude(
         "--output-format", "json",
         "--model", cfg.get("claude_model", "sonnet"),
         "--max-turns", "10",
-        "--effort", cfg.get("claude_effort", "low"),
     ]
+
+    # --effort so e adicionado se explicitamente configurado (flag pode nao existir em versoes antigas do CLI)
+    if cfg.get("claude_effort"):
+        base_cmd.extend(["--effort", cfg["claude_effort"]])
 
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
 
