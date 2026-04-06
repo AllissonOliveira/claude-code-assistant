@@ -19,7 +19,7 @@
       "instructions": "Na mesma tela do passo anterior, COPIE o 'Secret do cliente'"
     }
   },
-  "pre_install": "pip install uv 2>/dev/null || true",
+  "pre_install": "pip install uv",
   "post_install": null,
   "notes": "Substitui Google Calendar + Gmail + Google Docs em um unico MCP. Usa o tier 'core' por padrao (tools essenciais). Para expandir, mude --tool-tier para 'extended' ou 'complete'.",
   "shared_credentials": null

@@ -145,7 +145,12 @@ def _install_whatsapp_mcp() -> bool:
     """Instalacao automatica do WhatsApp MCP: clona, compila, registra e conecta."""
     WA_DIR = Path.home() / ".claude" / "whatsapp-mcp-plus"
 
-    # Clona se nao existe
+    # Clona se nao existe ou esta corrompido
+    if WA_DIR.exists() and not (WA_DIR / ".git").exists():
+        print(f"  {YELLOW}Diretorio existente mas corrompido. Removendo...{RESET}")
+        import shutil
+        shutil.rmtree(str(WA_DIR), ignore_errors=True)
+
     if not WA_DIR.exists():
         print(f"  {YELLOW}Clonando whatsapp-mcp-plus...{RESET}")
         result = subprocess.run(
@@ -156,6 +161,9 @@ def _install_whatsapp_mcp() -> bool:
             print(f"  {RED}Erro ao clonar repositorio: {result.stderr}{RESET}")
             return False
         print(f"  {GREEN}Repositorio clonado.{RESET}")
+    else:
+        print(f"  {GREEN}Repositorio ja existe. Atualizando...{RESET}")
+        subprocess.run(["git", "pull"], cwd=str(WA_DIR), capture_output=True)
 
     # Roda o install.sh do whatsapp-mcp-plus
     install_script = WA_DIR / "install.sh"

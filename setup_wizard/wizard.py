@@ -10,11 +10,9 @@ from pathlib import Path
 
 from .mcp_installer import (
     add_custom_mcp,
-    display_mcp_menu,
     generate_tools_md,
     install_selected_mcps,
     load_available_mcps,
-    select_mcps,
 )
 from .profile_builder import (
     collect_from_document,
