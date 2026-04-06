@@ -4,18 +4,17 @@
 
 Se `config.json` NAO existe neste diretorio, o projeto precisa ser configurado.
 
-Execute:
+Primeiro instale as dependencias:
 
 ```
 pip install -e .
-claude-assistant-setup
 ```
 
-O wizard guia por tudo: verificacao do sistema, perfil do usuario, criacao do bot no Telegram, integracoes MCP e instalacao como servico.
+Depois inicie a configuracao interativa usando o slash command `/setup`. Ele guia por tudo: verificacao do sistema, perfil do usuario, criacao do bot no Telegram, integracoes MCP e instalacao como servico. Siga as instrucoes do `/setup` passo a passo, fazendo uma pergunta por vez ao usuario.
 
-Alternativa: use o slash command `/setup` para configuracao interativa guiada pelo Claude Code.
+Alternativa (terminal direto): o usuario pode rodar `claude-assistant-setup` no terminal fora do Claude Code.
 
-IMPORTANTE: Nao tente criar os arquivos (CORE.md, USER.md, config.json, etc.) manualmente. O wizard gera tudo automaticamente a partir dos templates e das respostas do usuario.
+IMPORTANTE: Nao tente criar os arquivos (CORE.md, USER.md, config.json, etc.) manualmente. O processo de configuracao gera tudo automaticamente a partir dos templates e das respostas do usuario.
 
 ---
 
