@@ -4,18 +4,17 @@
 
 Se `config.json` NAO existe neste diretorio, o projeto precisa ser configurado.
 
-### Passo 1: Instalar dependencias
-Execute via Bash:
+Informe ao usuario para rodar o instalador no terminal:
+
 ```
-pip install -e .
+./install.sh
 ```
 
-### Passo 2: Configuracao interativa
-ATENCAO: O comando `claude-assistant-setup` e interativo e NAO funciona dentro do Claude Code (requer input do terminal). NAO tente roda-lo via Bash.
+O script faz tudo automaticamente: instala dependencias, Claude Code CLI, pacote do bot, e abre o wizard de configuracao interativo.
 
-Em vez disso, siga as instrucoes do arquivo `.claude/commands/setup.md` diretamente. Voce (Claude) fara as perguntas ao usuario uma por vez, coletara as respostas, e gerara todos os arquivos necessarios. Leia o setup.md e execute cada fase na ordem.
+IMPORTANTE: O instalador e interativo e NAO funciona dentro do Claude Code. O usuario DEVE rodar no terminal diretamente.
 
-IMPORTANTE: Nao tente criar os arquivos (CORE.md, USER.md, config.json, etc.) sem seguir o processo do setup.md. Ele define exatamente o que perguntar e como gerar cada arquivo.
+Alternativa para configuracao dentro do Claude Code: siga as instrucoes do arquivo `.claude/commands/setup.md` diretamente.
 
 ---
 

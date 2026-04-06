@@ -141,12 +141,70 @@ def _escolha_local(opcoes: list[str], prompt: str = "Escolha") -> int:
         print(f"  {YELLOW}Digite um numero entre 1 e {len(opcoes)}.{RESET}")
 
 
+def _install_whatsapp_mcp() -> bool:
+    """Instalacao automatica do WhatsApp MCP: clona, compila, registra e conecta."""
+    WA_DIR = Path.home() / ".claude" / "whatsapp-mcp-plus"
+
+    # Clona se nao existe
+    if not WA_DIR.exists():
+        print(f"  {YELLOW}Clonando whatsapp-mcp-plus...{RESET}")
+        result = subprocess.run(
+            ["git", "clone", "https://github.com/AllissonOliveira/whatsapp-mcp-plus.git", str(WA_DIR)],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"  {RED}Erro ao clonar repositorio: {result.stderr}{RESET}")
+            return False
+        print(f"  {GREEN}Repositorio clonado.{RESET}")
+
+    # Roda o install.sh do whatsapp-mcp-plus
+    install_script = WA_DIR / "install.sh"
+    if install_script.exists():
+        print(f"  {YELLOW}Executando instalador do WhatsApp MCP...{RESET}")
+        result = subprocess.run(
+            ["bash", str(install_script)],
+            cwd=str(WA_DIR),
+        )
+        return result.returncode == 0
+
+    # Fallback: instalacao manual se install.sh nao existir
+    print(f"  {YELLOW}install.sh nao encontrado, instalando manualmente...{RESET}")
+
+    # Compila bridge
+    bridge_dir = WA_DIR / "whatsapp-bridge"
+    if bridge_dir.exists():
+        print(f"  {YELLOW}Compilando bridge Go...{RESET}")
+        result = subprocess.run(
+            ["go", "build", "-o", "whatsapp-bridge", "main.go"],
+            cwd=str(bridge_dir), capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"  {RED}Erro ao compilar bridge: {result.stderr}{RESET}")
+            return False
+
+    # Registra no claude.json
+    mcp_server_dir = str(WA_DIR / "whatsapp-mcp-server")
+    claude = load_claude_json()
+    claude.setdefault("mcpServers", {})["whatsapp"] = {
+        "command": "uv",
+        "args": ["--directory", mcp_server_dir, "run", "main.py"],
+    }
+    save_claude_json(claude)
+
+    print(f"  {GREEN}[OK] WhatsApp MCP instalado!{RESET}")
+    return True
+
+
 def install_mcp(mcp: dict, shared_creds: dict) -> bool:
     """Instala um MCP: executa pre_install, coleta credenciais, salva no claude.json."""
     name = mcp["name"]
     mcp_id = mcp["id"]
 
     print(f"\n  {BOLD}{CYAN}Configurando: {name}{RESET}")
+
+    # WhatsApp tem instalacao especial
+    if mcp_id == "whatsapp":
+        return _install_whatsapp_mcp()
 
     if is_mcp_installed(mcp):
         print(f"  {GREEN}Esta integracao ja esta instalada.{RESET}")

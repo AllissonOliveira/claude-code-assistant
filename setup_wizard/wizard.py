@@ -199,27 +199,22 @@ def check_system() -> None:
 # ---------------------------------------------------------------------------
 
 def run_mcp_setup() -> list[dict]:
-    """Exibe menu, instala MCPs selecionados e oferece adicao de customizados."""
+    """Instala TODOS os MCPs automaticamente. Pede apenas credenciais quando necessario."""
     print(
-        f"  Escolha quais servicos voce quer conectar ao assistente.\n"
-        f"  Voce pode instalar mais depois, isso nao e definitivo.\n"
+        f"  Instalando todas as integracoes disponiveis automaticamente.\n"
+        f"  Voce so vai precisar fornecer credenciais quando necessario.\n"
     )
 
     mcps = load_available_mcps()
-    display_mcp_menu(mcps)
-
-    selected = select_mcps(mcps)
-    installed = []
-    if selected:
-        installed = install_selected_mcps(selected)
-        if installed:
-            generate_tools_md(installed, BASE_DIR / "TOOLS.md")
-            print_ok(f"{len(installed)} integracao(oes) configurada(s) com sucesso!")
+    installed = install_selected_mcps(mcps)
+    if installed:
+        generate_tools_md(installed, BASE_DIR / "TOOLS.md")
+        print_ok(f"{len(installed)} integracao(oes) configurada(s) com sucesso!")
     else:
-        print_aviso("Nenhuma integracao selecionada. Voce pode adicionar depois.")
+        print_aviso("Nenhuma integracao foi instalada.")
 
     # MCP customizado
-    print(f"\n  Quer adicionar alguma integracao que nao esta na lista?\n")
+    print(f"\n  Quer adicionar alguma integracao extra que nao esta na lista?\n")
     idx = escolha(["Sim, quero adicionar outra integracao", "Nao, pode continuar"])
     if idx == 0:
         extra = add_custom_mcp()

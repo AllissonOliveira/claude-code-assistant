@@ -35,15 +35,21 @@ Ele lembra do contexto entre sessoes, usa ferramentas MCP para acessar sua agend
 ```bash
 git clone https://github.com/alissonoliveira/claude-code-assistant
 cd claude-code-assistant
-pip install -e .
-claude-assistant-setup
+./install.sh
 ```
 
-O wizard guia voce na criacao do bot no Telegram, configuracao do perfil, selecao de integracoes MCP e instalacao do servico.
+O instalador faz tudo automaticamente:
+1. Instala dependencias (Python, Node, Go, uv, ffmpeg)
+2. Instala e configura o Claude Code CLI
+3. Configura seu perfil e preferencias
+4. Cria o bot no Telegram
+5. Instala todas as integracoes MCP (WhatsApp, Calendar, Gmail, etc.)
+6. Instala como servico do sistema
 
 ### Manual (desenvolvimento)
 
 ```bash
+pip install -e .
 python daemon.py
 ```
 
