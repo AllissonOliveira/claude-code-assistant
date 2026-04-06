@@ -431,7 +431,7 @@ def collect_bot_config(profile: dict) -> None:
     """Coleta nome do bot e idioma do audio. Atualiza o dict in-place."""
     # Nome do bot
     print(f"  {BOLD}Qual vai ser o nome do seu assistente?{RESET}")
-    print(f"  Exemplos: 'Metta Assistant', 'Meu Assistente', 'Jarvis'\n")
+    print(f"  Exemplos: 'Meu Assistente', 'Jarvis', 'Friday'\n")
     bot_name = input("  Nome: ").strip()
     if not bot_name:
         bot_name = "Claude Assistant"

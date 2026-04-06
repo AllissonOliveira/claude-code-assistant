@@ -71,7 +71,7 @@ Tambem crie os diretorios: memory/, sessions/, audio/temp/, files/temp/, logs/
 
 Faca estas tres perguntas (uma por vez):
 
-1. "Qual vai ser o nome do seu bot?" (ex: "Metta Assistant", "Meu Assistente")
+1. "Qual vai ser o nome do seu bot?" (ex: "Meu Assistente", "Jarvis")
 2. "O bot pode usar seu nome nas respostas? (1-Sim, 2-Nao)"
 3. "Escreva uma descricao curta do bot (sera usada no BotFather, max 255 caracteres)"
 

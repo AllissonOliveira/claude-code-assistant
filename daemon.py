@@ -657,7 +657,7 @@ _EXTRACT_PROMPT_SUFFIX = (
     "{\n"
     '  "contacts": [{"name": "nome", "phone": "+55...", "email": "...", "context": "...", "confidence": "CONFIRMED"}],\n'
     '  "preferences": [{"rule": "regra de comportamento", "confidence": "CONFIRMED ou INFERRED", "source": "trecho da conversa"}],\n'
-    '  "decisions": [{"text": "decisao ou fato", "confidence": "CONFIRMED ou INFERRED", "source": "trecho da conversa"}],\n'
+    '  "decisions": [{"text": "decisao ou fato", "when": "YYYY-MM-DD aproximado", "confidence": "CONFIRMED ou INFERRED", "source": "trecho da conversa"}],\n'
     '  "tasks": [{"text": "tarefa pendente", "due_date": "YYYY-MM-DD ou null", "due_time": "HH:MM ou null", "confidence": "CONFIRMED"}],\n'
     '  "patterns": [{"observation": "padrao observado", "evidence": "evidencia no log"}]\n'
     "}\n"
@@ -742,11 +742,15 @@ def _write_memory_extract(extract: dict, cfg: dict | None = None, allow_reminder
         inferred = [d for d in decisions if d.get("confidence") == "INFERRED"]
         lines = [f"\n## Registrado em {now_str}"]
         for d in confirmed:
-            lines.append(f"- {d['text']}")
+            when = d.get("when", "")
+            date_tag = f" ({when})" if when else ""
+            lines.append(f"- {d['text']}{date_tag}")
             saved.append(f"Decisao: {d['text'][:70]}")
         for d in inferred:
             src = d.get("source", "contexto geral")
-            lines.append(f"- [inferido] {d['text']} (fonte: {src})")
+            when = d.get("when", "")
+            date_tag = f" ({when})" if when else ""
+            lines.append(f"- [inferido] {d['text']}{date_tag} (fonte: {src})")
             saved.append(f"Inferencia: {d['text'][:70]}")
         with open(MEMORY_FILE, "a", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
@@ -836,6 +840,16 @@ def run_memory_checkpoint(session_id: str | None, cfg: dict) -> None:
                 log("[MEMÓRIA] Checkpoint: sem log de conversa")
                 return
 
+            # Le apenas a parte do conv-log apos o ultimo checkpoint
+            checkpoint_marker = "[CHECKPOINT_MARK]"
+            last_mark = conv_log.rfind(checkpoint_marker)
+            if last_mark >= 0:
+                conv_log = conv_log[last_mark + len(checkpoint_marker):]
+            conv_log = conv_log.strip()
+            if not conv_log:
+                log("[MEMÓRIA] Checkpoint: nada novo desde o ultimo checkpoint")
+                return
+
             today = datetime.now().strftime("%Y-%m-%d")
             prompt = (
                 f"[LOG DE CONVERSA DE HOJE ({today})]\n{conv_log}\n\n"
@@ -856,6 +870,13 @@ def run_memory_checkpoint(session_id: str | None, cfg: dict) -> None:
 
             saved = _write_memory_extract(extract, cfg)
             if saved:
+                # Marca no conv-log ate onde foi processado
+                try:
+                    now = datetime.now()
+                    with open(_conv_log_path(now), "a", encoding="utf-8") as f:
+                        f.write(f"\n[CHECKPOINT_MARK] {now.strftime('%H:%M')}\n")
+                except Exception:
+                    pass
                 log(f"[MEMÓRIA] Checkpoint salvou: {saved}")
             else:
                 log("[MEMÓRIA] Checkpoint: JSON vazio, nada salvo")
@@ -1429,6 +1450,7 @@ def call_claude(
         "--output-format", "json",
         "--model", cfg.get("claude_model", "sonnet"),
         "--max-turns", "10",
+        "--effort", cfg.get("claude_effort", "low"),
     ]
 
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
@@ -1545,8 +1567,15 @@ def prewarm_session(cfg: dict, state: dict) -> dict:
     já está na sessão.
     """
     if state.get("session_id"):
-        log(f"[INIT] Sessão existente: {state['session_id'][:16]}...")
-        return state
+        log(f"[INIT] Sessao existente: {state['session_id'][:16]}... verificando...")
+        test_response, _ = call_claude("ping", state["session_id"], cfg)
+        if test_response:
+            log("[INIT] Sessao ainda viva, reutilizando")
+            return state
+        else:
+            log("[INIT] Sessao morta, criando nova")
+            state["session_id"] = None
+            save_state(state)
 
     log("[INIT] Pré-aquecendo sessão com contexto completo...")
     context = build_session_context()
