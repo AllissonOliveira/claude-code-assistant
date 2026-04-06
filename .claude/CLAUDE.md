@@ -4,17 +4,18 @@
 
 Se `config.json` NAO existe neste diretorio, o projeto precisa ser configurado.
 
-Primeiro instale as dependencias:
-
+### Passo 1: Instalar dependencias
+Execute via Bash:
 ```
 pip install -e .
 ```
 
-Depois inicie a configuracao interativa usando o slash command `/setup`. Ele guia por tudo: verificacao do sistema, perfil do usuario, criacao do bot no Telegram, integracoes MCP e instalacao como servico. Siga as instrucoes do `/setup` passo a passo, fazendo uma pergunta por vez ao usuario.
+### Passo 2: Configuracao interativa
+ATENCAO: O comando `claude-assistant-setup` e interativo e NAO funciona dentro do Claude Code (requer input do terminal). NAO tente roda-lo via Bash.
 
-Alternativa (terminal direto): o usuario pode rodar `claude-assistant-setup` no terminal fora do Claude Code.
+Em vez disso, siga as instrucoes do arquivo `.claude/commands/setup.md` diretamente. Voce (Claude) fara as perguntas ao usuario uma por vez, coletara as respostas, e gerara todos os arquivos necessarios. Leia o setup.md e execute cada fase na ordem.
 
-IMPORTANTE: Nao tente criar os arquivos (CORE.md, USER.md, config.json, etc.) manualmente. O processo de configuracao gera tudo automaticamente a partir dos templates e das respostas do usuario.
+IMPORTANTE: Nao tente criar os arquivos (CORE.md, USER.md, config.json, etc.) sem seguir o processo do setup.md. Ele define exatamente o que perguntar e como gerar cada arquivo.
 
 ---
 
