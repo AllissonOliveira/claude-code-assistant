@@ -34,6 +34,7 @@ def _install_launchagent(project_dir: str, python_path: str) -> bool:
     plist_content = LAUNCHAGENT_TEMPLATE.substitute(
         python_path=python_path,
         project_dir=project_dir,
+        home_dir=os.path.expanduser("~"),
     )
 
     # Ensure logs directory exists
@@ -79,6 +80,7 @@ def _install_systemd(project_dir: str, python_path: str) -> bool:
     service_content = SYSTEMD_TEMPLATE.substitute(
         python_path=python_path,
         project_dir=project_dir,
+        home_dir=os.path.expanduser("~"),
     )
 
     service_name = "claude-assistant.service"

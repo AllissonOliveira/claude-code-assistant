@@ -323,7 +323,7 @@ LAUNCHAGENT_TEMPLATE = Template("""\
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/opt/homebrew/sbin</string>
+        <string>${home_dir}/.local/bin:${home_dir}/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/opt/homebrew/sbin</string>
     </dict>
 </dict>
 </plist>
@@ -340,7 +340,7 @@ ExecStart=${python_path} ${project_dir}/daemon.py
 WorkingDirectory=${project_dir}
 Restart=always
 RestartSec=10
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PATH=${home_dir}/.local/bin:${home_dir}/.cargo/bin:/usr/local/bin:/usr/bin:/bin
 
 [Install]
 WantedBy=default.target
