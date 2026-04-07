@@ -33,7 +33,7 @@ Ele lembra do contexto entre sessoes, usa ferramentas MCP para acessar sua agend
 ### Via instalador (recomendado)
 
 ```bash
-git clone https://https://github.com/AllissonOliveira/claude-code-assistant
+git clone https://github.com/AllissonOliveira/claude-code-assistant
 cd claude-code-assistant
 ./install.sh
 ```
