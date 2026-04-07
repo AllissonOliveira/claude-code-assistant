@@ -212,23 +212,45 @@ else
     fi
 fi
 
-# Verifica se esta autenticado tentando listar algo que requer auth
-if ! claude -p "ping" --output-format json --max-turns 1 &>/dev/null 2>&1; then
-    echo ""
-    aviso "O Claude Code precisa ser autenticado antes de continuar."
-    echo ""
-    echo -e "  Execute o comando abaixo no terminal e siga as instrucoes:"
-    echo ""
-    echo -e "    ${CYAN}${BOLD}claude${RESET}"
-    echo ""
-    echo -e "  Depois de autenticar, execute este script novamente:"
-    echo ""
-    echo -e "    ${CYAN}${BOLD}./install.sh${RESET}"
-    echo ""
-    exit 0
+# Verifica se esta autenticado (timeout de 30s para nao travar)
+_auth_ok=false
+if timeout 30 claude -p "ping" --output-format json --max-turns 1 &>/dev/null 2>&1; then
+    _auth_ok=true
 fi
 
-ok "Claude Code autenticado"
+if ! $_auth_ok; then
+    echo ""
+    aviso "O Claude Code precisa ser autenticado."
+    echo -e "  Abrindo Claude Code para voce autenticar..."
+    echo -e "  ${YELLOW}Siga as instrucoes na tela. Apos autenticar, feche com /exit ou Ctrl+C.${RESET}"
+    echo ""
+    claude || true
+    echo ""
+
+    # Retenta apos autenticacao
+    if timeout 30 claude -p "ping" --output-format json --max-turns 1 &>/dev/null 2>&1; then
+        _auth_ok=true
+    fi
+fi
+
+if $_auth_ok; then
+    ok "Claude Code autenticado"
+else
+    echo ""
+    aviso "Nao foi possivel confirmar a autenticacao."
+    echo ""
+    echo -e "  O que deseja fazer?"
+    echo -e "  1) Continuar mesmo assim (se voce ja autenticou por fora)"
+    echo -e "  2) Sair e resolver manualmente"
+    echo ""
+    read -p "  Escolha [1/2]: " _auth_choice
+    if [[ "$_auth_choice" != "1" ]]; then
+        echo ""
+        echo -e "  Quando estiver pronto, rode ${CYAN}${BOLD}./install.sh${RESET} novamente."
+        exit 0
+    fi
+    aviso "Continuando sem confirmacao de autenticacao..."
+fi
 
 # ============================================================================
 # Fase 3: Instalar pacote do bot
