@@ -14,5 +14,7 @@
   "whisper_bin": "",
   "whisper_model": "base",
   "whisper_language": "pt",
+  "transcription_mode": "api+local",
+  "groq_api_key": "",
   "timezone": "America/Sao_Paulo"
 }

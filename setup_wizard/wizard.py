@@ -341,6 +341,8 @@ def generate_config(token: str, chat_id: int | None, profile: dict) -> None:
         "whisper_bin": "",
         "whisper_model": "base",
         "whisper_language": profile.get("language_code", "pt"),
+        "transcription_mode": profile.get("transcription_mode", "api+local"),
+        "groq_api_key": profile.get("groq_api_key", ""),
         "timezone": profile.get("timezone", "America/Sao_Paulo"),
     }
     config_path = os.path.join(project_dir, "config.json")
@@ -475,6 +477,41 @@ def collect_bot_config(profile: dict) -> None:
         code = input(f"\n  Codigo ISO 639-1 do idioma (ex: fr, de, it): ").strip().lower()
         profile["language_code"] = code if code else "pt"
     print_ok(f"Idioma de audio: {profile['language_code']}")
+
+    # Modo de transcricao
+    print(f"\n  {BOLD}Como voce quer transcrever mensagens de voz?{RESET}\n")
+    tr_idx = escolha([
+        "Pela internet (Groq API, gratis, rapido, nao usa seu computador)",
+        "No seu computador (precisa de mais memoria/CPU)",
+        "Internet + computador como backup (recomendado)",
+    ])
+    tr_map = {0: "api", 1: "local", 2: "api+local"}
+    profile["transcription_mode"] = tr_map[tr_idx]
+
+    if tr_idx in (0, 2):
+        print(f"\n  {BOLD}Para usar a transcricao pela internet, voce precisa de uma chave da Groq (gratis).{RESET}")
+        print(f"  1. Acesse {CYAN}console.groq.com/keys{RESET}")
+        print(f"  2. Crie uma conta (e gratis)")
+        print(f"  3. Clique em 'Create API Key' e copie a chave\n")
+        while True:
+            key = input("  Cole a chave aqui: ").strip()
+            if key.startswith("gsk_") and len(key) > 20:
+                profile["groq_api_key"] = key
+                print_ok("Chave da Groq configurada!")
+                break
+            if not key:
+                if tr_idx == 2:
+                    print_aviso("Sem chave, usando apenas transcricao local")
+                    profile["transcription_mode"] = "local"
+                    profile["groq_api_key"] = ""
+                    break
+                print(f"  {YELLOW}A chave e obrigatoria para o modo 'pela internet'.{RESET}")
+            else:
+                print(f"  {YELLOW}Chave invalida. Ela comeca com 'gsk_' e tem mais de 20 caracteres.{RESET}")
+    else:
+        profile["groq_api_key"] = ""
+
+    print_ok(f"Modo de transcricao: {profile['transcription_mode']}")
 
     # Avisos proativos (heartbeat)
     print(f"\n  {BOLD}O bot pode verificar sua agenda e emails periodicamente{RESET}")

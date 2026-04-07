@@ -379,24 +379,63 @@ _faster_whisper_model = None
 _faster_whisper_model_name: str | None = None
 
 
-def transcribe_audio(audio_path: str, cfg: dict) -> str | None:
-    """Transcreve áudio usando faster-whisper (5-10x mais rápido que o Whisper original).
+def _transcribe_groq(audio_path: str, cfg: dict) -> str | None:
+    """Transcreve áudio via Groq Whisper API (cloud, não usa CPU/GPU local)."""
+    api_key = cfg.get("groq_api_key")
+    if not api_key:
+        return None
 
-    Mantém o modelo carregado em memória entre chamadas para evitar reload.
-    Fallback automático para o whisper CLI se faster-whisper falhar.
-    """
+    language = cfg.get("whisper_language", "pt")
+    model = cfg.get("groq_whisper_model", "whisper-large-v3-turbo")
+
+    try:
+        # Groq aceita ogg mas não oga — envia com nome .ogg
+        filename = Path(audio_path).name
+        if filename.endswith(".oga"):
+            filename = filename[:-4] + ".ogg"
+
+        with open(audio_path, "rb") as f:
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                files={"file": (filename, f)},
+                data={"model": model, "language": language, "response_format": "json"},
+                timeout=120,
+            )
+
+        if resp.status_code != 200:
+            log(f"[AVISO] Groq API erro {resp.status_code}: {resp.text[:200]}")
+            return None
+
+        text = resp.json().get("text", "").strip()
+        if not text:
+            log("[AVISO] Groq API: transcrição vazia (áudio silencioso?)")
+            return None
+
+        log(f"[ÁUDIO] Groq API ({model}) — transcrição OK")
+        return text
+
+    except requests.Timeout:
+        log("[AVISO] Groq API timeout (120s)")
+        return None
+    except Exception as e:
+        log(f"[AVISO] Groq API falhou: {e}")
+        return None
+
+
+def _transcribe_local(audio_path: str, cfg: dict) -> str | None:
+    """Transcreve áudio localmente via faster-whisper (fallback)."""
     global _faster_whisper_model, _faster_whisper_model_name
 
-    model_name = cfg.get("whisper_model", "medium")
+    model_name = cfg.get("whisper_model", "base")
+    language = cfg.get("whisper_language", "pt")
 
-    # Converte para WAV antes de passar ao Whisper (Telegram envia .ogg/Opus)
     wav_path, converted = _convert_to_wav(audio_path)
 
     try:
         try:
             from faster_whisper import WhisperModel
 
-            # Carrega o modelo só uma vez, reutiliza nas próximas chamadas
             if _faster_whisper_model is None or _faster_whisper_model_name != model_name:
                 log(f"[ÁUDIO] Carregando faster-whisper ({model_name})...")
                 _faster_whisper_model = WhisperModel(model_name, device="cpu", compute_type="int8")
@@ -404,7 +443,7 @@ def transcribe_audio(audio_path: str, cfg: dict) -> str | None:
                 log(f"[ÁUDIO] faster-whisper ({model_name}) pronto")
 
             segments, info = _faster_whisper_model.transcribe(
-                wav_path, language=cfg.get("whisper_language", "pt"), beam_size=5
+                wav_path, language=language, beam_size=5
             )
             text = " ".join(seg.text.strip() for seg in segments).strip()
             log(f"[ÁUDIO] faster-whisper — idioma detectado: {info.language} ({info.language_probability:.0%})")
@@ -417,15 +456,14 @@ def transcribe_audio(audio_path: str, cfg: dict) -> str | None:
         except ImportError:
             log("[AVISO] faster-whisper não disponível — usando whisper CLI")
 
-        # Fallback: whisper CLI original
         whisper_bin = cfg.get("whisper_bin", "whisper")
         out_dir = str(AUDIO_TEMP_DIR)
         cmd = [whisper_bin, wav_path,
                "--model", model_name,
-               "--language", cfg.get("whisper_language", "pt"),
+               "--language", language,
                "--output_format", "txt",
                "--output_dir", out_dir]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=None)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
         if result.returncode != 0:
             log(f"[ERRO] Whisper CLI falhou (código {result.returncode}): {result.stderr[:300]}")
@@ -444,11 +482,31 @@ def transcribe_audio(audio_path: str, cfg: dict) -> str | None:
         return None
 
     except Exception as e:
-        log(f"[ERRO] Transcrição: {e}")
+        log(f"[ERRO] Transcrição local: {e}")
         return None
     finally:
         if converted:
             Path(wav_path).unlink(missing_ok=True)
+
+
+def transcribe_audio(audio_path: str, cfg: dict) -> str | None:
+    """Transcreve áudio de acordo com o modo configurado (api, local, api+local)."""
+    mode = cfg.get("transcription_mode", "api+local")
+
+    if mode == "local":
+        return _transcribe_local(audio_path, cfg)
+
+    # Modos "api" e "api+local": tenta Groq primeiro
+    text = _transcribe_groq(audio_path, cfg)
+    if text:
+        return text
+
+    if mode == "api":
+        return None
+
+    # Modo "api+local": fallback para local
+    log("[ÁUDIO] Groq falhou, tentando transcrição local...")
+    return _transcribe_local(audio_path, cfg)
 
 
 # ---------------------------------------------------------------------------
