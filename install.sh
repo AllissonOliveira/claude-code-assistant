@@ -278,10 +278,3 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}${BOLD}  ╔══════════════════════════════════════════════════════╗"
-echo -e "  ║         Instalacao concluida com sucesso!            ║"
-echo -e "  ╚══════════════════════════════════════════════════════╝${RESET}"
-echo ""
-echo -e "  Para iniciar o bot: ${CYAN}python daemon.py${RESET}"
-echo -e "  Ou ele ja esta rodando como servico automatico."
-echo ""

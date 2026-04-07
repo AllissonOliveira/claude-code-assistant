@@ -4,6 +4,7 @@
   "description": "Mensagens, canais, busca de conversas",
   "category": "recommended",
   "priority": 2,
+  "existing_ids": [],
   "auth_difficulty": "easy",
   "command": "npx",
   "args": ["-y", "@anthropic-ai/mcp-server-slack"],

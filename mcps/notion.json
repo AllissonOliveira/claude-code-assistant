@@ -4,6 +4,7 @@
   "description": "Busca, cria e edita paginas, databases e comentarios no Notion",
   "category": "recommended",
   "priority": 2,
+  "existing_ids": [],
   "auth_difficulty": "easy",
   "command": "npx",
   "args": ["-y", "@notionhq/notion-mcp-server"],

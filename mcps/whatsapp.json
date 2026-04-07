@@ -4,6 +4,7 @@
   "description": "Le mensagens, busca contatos, envia mensagens e midia pelo WhatsApp pessoal",
   "category": "essential",
   "priority": 1,
+  "existing_ids": ["whatsapp-mcp-plus"],
   "auth_difficulty": "hard",
   "command": "uv",
   "args": [

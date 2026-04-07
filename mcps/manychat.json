@@ -4,6 +4,7 @@
   "description": "Gerencia subscribers, tags, flows e envia mensagens via ManyChat",
   "category": "optional",
   "priority": 3,
+  "existing_ids": [],
   "auth_difficulty": "easy",
   "command": "npx",
   "args": ["-y", "manychat-mcp"],

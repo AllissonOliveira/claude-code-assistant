@@ -4,6 +4,7 @@
   "description": "Gerencia contatos, deals, empresas e workflows no HubSpot CRM",
   "category": "recommended",
   "priority": 2,
+  "existing_ids": ["hubspot"],
   "auth_difficulty": "medium",
   "command": "npx",
   "args": ["-y", "@hubspot/mcp-server"],

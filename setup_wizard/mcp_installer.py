@@ -58,6 +58,28 @@ def is_mcp_installed(mcp: dict) -> bool:
     return mcp.get("id", "") in claude.get("mcpServers", {})
 
 
+def find_existing_mcp(mcp: dict) -> str | None:
+    """Verifica se o usuario ja tem um MCP equivalente instalado.
+
+    Checa tanto o proprio ID do MCP quanto os IDs alternativos listados
+    em 'existing_ids'. Retorna o ID do MCP existente ou None.
+    """
+    claude = load_claude_json()
+    servers = claude.get("mcpServers", {})
+    mcp_id = mcp.get("id", "")
+
+    # Checa o proprio ID
+    if mcp_id in servers:
+        return mcp_id
+
+    # Checa IDs alternativos
+    for alt_id in mcp.get("existing_ids", []):
+        if alt_id in servers:
+            return alt_id
+
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Exibicao do menu
 # ---------------------------------------------------------------------------
@@ -207,14 +229,35 @@ def install_mcp(mcp: dict, shared_creds: dict) -> bool:
     """Instala um MCP: executa pre_install, coleta credenciais, salva no claude.json."""
     name = mcp["name"]
     mcp_id = mcp["id"]
+    description = mcp.get("description", "")
 
-    print(f"\n  {BOLD}{CYAN}Configurando: {name}{RESET}")
+    print(f"\n  {BOLD}{CYAN}{name}{RESET} - {description}")
+
+    # Verifica se ja existe um MCP equivalente instalado
+    existing = find_existing_mcp(mcp)
+    if existing:
+        print(f"  {GREEN}Voce ja tem '{existing}' instalado para essa funcao.{RESET}")
+        idx = _escolha_local([
+            "Usar o que ja tem (pular)",
+            "Instalar a versao do bot",
+        ])
+        if idx == 0:
+            return True  # Conta como sucesso, ja tem
+
+    else:
+        # Pergunta se quer instalar
+        idx = _escolha_local([
+            "Instalar",
+            "Pular",
+        ])
+        if idx == 1:
+            return False  # Pulou limpo, sem efeito colateral
 
     # WhatsApp tem instalacao especial
     if mcp_id == "whatsapp":
         return _install_whatsapp_mcp()
 
-    if is_mcp_installed(mcp):
+    if is_mcp_installed(mcp) and not existing:
         print(f"  {GREEN}Esta integracao ja esta instalada.{RESET}")
         print(f"\n  O que voce quer fazer?\n")
         idx = _escolha_local(["Manter como esta e pular", "Reconfigurar do zero"])

@@ -6,6 +6,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from .mcp_installer import (
@@ -197,10 +198,10 @@ def check_system() -> None:
 # ---------------------------------------------------------------------------
 
 def run_mcp_setup() -> list[dict]:
-    """Instala TODOS os MCPs automaticamente. Pede apenas credenciais quando necessario."""
+    """Mostra cada MCP e pergunta se quer instalar. Pular e sempre uma opcao."""
     print(
-        f"  Instalando todas as integracoes disponiveis automaticamente.\n"
-        f"  Voce so vai precisar fornecer credenciais quando necessario.\n"
+        f"  Vamos configurar suas integracoes.\n"
+        f"  Voce pode pular qualquer uma.\n"
     )
 
     mcps = load_available_mcps()
@@ -359,26 +360,52 @@ def _escrever(path: str, content: str) -> None:
 # Tela final
 # ---------------------------------------------------------------------------
 
-def print_success() -> None:
+def print_success(service_installed: bool = False) -> None:
     project_dir = str(BASE_DIR)
+    daemon_path = os.path.join(project_dir, "daemon.py")
+
+    # Se o servico nao foi instalado, inicia o daemon em background
+    if not service_installed:
+        try:
+            subprocess.Popen(
+                [sys.executable, daemon_path],
+                cwd=project_dir,
+                stdout=open(os.path.join(project_dir, "logs", "daemon.stdout.log"), "a"),
+                stderr=open(os.path.join(project_dir, "logs", "daemon.stderr.log"), "a"),
+                start_new_session=True,
+            )
+            print_ok("Daemon iniciado em background")
+        except Exception as e:
+            print_aviso(f"Nao consegui iniciar o daemon: {e}")
+
+    # Verifica se o daemon esta rodando
+    time.sleep(2)
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", f"python.*{os.path.basename(daemon_path)}"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            print_ok("Bot esta rodando!")
+        else:
+            print_aviso("Bot pode nao estar rodando. Verifique os logs.")
+    except Exception:
+        pass
+
     print(f"""
 {GREEN}{BOLD}  ╔══════════════════════════════════════════════════════╗
-  ║         Tudo pronto! Seu assistente esta ok.        ║
+  ║         Tudo pronto! Mande uma mensagem no Telegram ║
   ╚══════════════════════════════════════════════════════╝{RESET}
 
   {BOLD}Arquivos criados em:{RESET} {project_dir}
 
-  Para iniciar o assistente:
-    1. Abra o terminal nessa pasta
-    2. Execute:  python daemon.py
-
-  Depois e so mandar mensagem para o bot no Telegram!
+  O bot ja esta rodando. Mande uma mensagem para testar!
 
   {BOLD}Comandos uteis no chat:{RESET}
-    /status   — mostra o estado atual
-    /nova     — começa uma nova conversa
-    /memory   — exibe a memoria do assistente
-    /configurar — edita as configuracoes
+    /status   - mostra o estado atual
+    /nova     - comeca uma nova conversa
+    /memory   - exibe a memoria do assistente
+    /configurar - edita as configuracoes
 
   {BOLD}Ver logs:{RESET}
     {CYAN}tail -f logs/daemon.stderr.log{RESET}
@@ -415,9 +442,9 @@ def main() -> None:
     token = telegram["token"]
     chat_id = telegram.get("chat_id")
     generate_config(token, chat_id, profile)
-    install_service(str(BASE_DIR))
+    service_ok = install_service(str(BASE_DIR))
 
-    print_success()
+    print_success(service_installed=service_ok)
 
 
 def collect_bot_config(profile: dict) -> None:
